@@ -34,11 +34,11 @@ INDICATORS = {
     "mfi_period": 14,
     "mfi_long_threshold": 45,    # Below this = oversold
     "mfi_short_threshold": 55,   # Above this = overbought
-    "mfi_lookback": 3,           # Last 3 candles
+    "mfi_lookback": 1,           # Last 1 candle
 
     # Fractal
     "fractal_window": 5,         # 5-candle fractal (2L, Mid, 2R)
-    "fractal_lookback": 10,      # Look back 10 candles for confirmed fractals
+    "fractal_lookback": 17,      # Look back 17 candles for confirmed fractals
 
     # ATR
     "atr_period": 14,
