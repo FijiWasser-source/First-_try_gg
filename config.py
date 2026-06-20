@@ -22,17 +22,14 @@ TIMEFRAME = "1h"  # 1 hour candles for better trends
 
 # Technical Indicators
 INDICATORS = {
-    "sma_short": 20,      # Short-term moving average (improved for 1h)
-    "sma_long": 50,       # Long-term moving average (classic setup)
+    "sma_short": 10,      # Short-term moving average
+    "sma_long": 20,       # Long-term moving average
     "rsi_period": 14,
     "rsi_overbought": 70,
     "rsi_oversold": 30,
     "macd_fast": 12,
     "macd_slow": 26,
     "macd_signal": 9,
-    "stoch_rsi_period": 14,
-    "stoch_rsi_smooth_k": 3,
-    "stoch_rsi_smooth_d": 3,
     "atr_period": 14,
     "volume_period": 20,
 }

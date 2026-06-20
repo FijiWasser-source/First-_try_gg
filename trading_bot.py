@@ -62,7 +62,7 @@ class TradingBot:
         return current_volume > (avg_volume * threshold)
 
     def generate_signals(self, symbol: str) -> dict:
-        """Generate trading signals: SMA + RSI + MACD + Stochastic RSI (need 3/4)"""
+        """Generate trading signals: SMA + RSI + MACD (need all 3)"""
         ohlcv = self.fetch_price_data(symbol)
 
         if not ohlcv or len(ohlcv["close"]) < INDICATORS["atr_period"]:
@@ -80,10 +80,6 @@ class TradingBot:
         macd, macd_signal, _ = self.indicators_calc.macd(
             closes, INDICATORS["macd_fast"], INDICATORS["macd_slow"], INDICATORS["macd_signal"]
         )
-        stoch_k, stoch_d = self.indicators_calc.stochastic_rsi(
-            closes, INDICATORS["stoch_rsi_period"],
-            INDICATORS["stoch_rsi_smooth_k"], INDICATORS["stoch_rsi_smooth_d"]
-        )
         atr = self.indicators_calc.atr(ohlcv["high"], ohlcv["low"], closes, INDICATORS["atr_period"])
 
         current_price = closes[-1]
@@ -91,14 +87,11 @@ class TradingBot:
         current_sma_long = sma_long[-1]
         current_macd = macd[-1]
         current_macd_signal = macd_signal[-1]
-        current_stoch_k = stoch_k[-1]
-        current_stoch_d = stoch_d[-1]
         current_atr = atr[-1]
 
         signal = {"signal": "HOLD", "reason": "", "price": current_price, "atr": current_atr}
 
-        # 4 Signals: SMA + RSI + MACD + Stochastic RSI
-        # Need 3 out of 4 to be bullish/bearish
+        # 3 Signals: SMA + RSI + MACD (all 3 must agree)
 
         # Signal 1: SMA Trend
         sma_bullish = current_sma_short > current_sma_long
@@ -112,26 +105,16 @@ class TradingBot:
         macd_bullish = current_macd > current_macd_signal
         macd_bearish = not macd_bullish
 
-        # Signal 4: Stochastic RSI
-        stoch_bullish = current_stoch_k < 0.8  # Not overbought
-        stoch_bearish = current_stoch_k > 0.2  # Not oversold
-
-        bullish_signals = [sma_bullish, rsi_bullish, macd_bullish, stoch_bullish]
-        bearish_signals = [sma_bearish, rsi_bearish, macd_bearish, stoch_bearish]
-
-        bullish_count = sum(bullish_signals)
-        bearish_count = sum(bearish_signals)
-
-        # BUY: Need 3+ bullish signals
-        if bullish_count >= 3 and symbol not in self.positions:
+        # BUY: All 3 signals bullish
+        if sma_bullish and rsi_bullish and macd_bullish and symbol not in self.positions:
             signal["signal"] = "BUY"
-            signal["reason"] = f"Bullish ({bullish_count}/4): SMA:{sma_bullish} RSI:{rsi_bullish} MACD:{macd_bullish} Stoch:{stoch_bullish}"
+            signal["reason"] = f"Bullish (3/3): SMA:{current_sma_short:.2f}>{current_sma_long:.2f} RSI:{current_rsi:.2f} MACD bullish | ATR:{current_atr:.2f}"
             logger.info(f"{symbol} BUY Signal: {signal['reason']}")
 
-        # SELL: Need 3+ bearish signals
-        elif bearish_count >= 3 and symbol not in self.positions:
+        # SELL: All 3 signals bearish
+        elif sma_bearish and rsi_bearish and macd_bearish and symbol not in self.positions:
             signal["signal"] = "SELL"
-            signal["reason"] = f"Bearish ({bearish_count}/4): SMA:{sma_bearish} RSI:{rsi_bearish} MACD:{macd_bearish} Stoch:{stoch_bearish}"
+            signal["reason"] = f"Bearish (3/3): SMA:{current_sma_short:.2f}<{current_sma_long:.2f} RSI:{current_rsi:.2f} MACD bearish | ATR:{current_atr:.2f}"
             logger.info(f"{symbol} SELL Signal: {signal['reason']}")
 
         return signal
