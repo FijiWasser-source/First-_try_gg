@@ -54,6 +54,7 @@ RISK_PER_TRADE_PCT = 1.0  # 1% risk per trade = $50
 MAX_RISK_PER_TRADE = ACCOUNT_SIZE * (RISK_PER_TRADE_PCT / 100)  # $50
 
 RISK_MANAGEMENT = {
+    "leverage": 20,              # Binance default leverage (risk adjusted by this)
     "max_daily_loss": MAX_RISK_PER_TRADE * 3,  # Stop after 3 losses
     "max_daily_profit": 999999,  # Unlimited daily profit
     "use_atr": True,            # Use ATR for dynamic SL/TP
