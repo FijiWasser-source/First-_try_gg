@@ -83,3 +83,16 @@ STRATEGY = {
     "entry_signal": "ma_cross",  # SMA cross, RSI, or MACD
     "exit_signal": "tp_sl",       # Take profit/stop loss
 }
+
+# Asset Precision (decimals for order quantity)
+ASSET_PRECISION = {
+    "BTCUSDT": 4,
+    "ETHUSDT": 3,
+    "UNIUSDT": 2,
+    "AAVAUSDT": 2,
+    "AVAXUSDT": 2,
+    "DOGEUSDT": 2,
+    "XRPUSDT": 2,
+    "1INCHUSDT": 2,
+    "HBARUSDT": 2,
+}  # Default fallback: 2

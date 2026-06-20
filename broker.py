@@ -86,12 +86,16 @@ class BinanceBroker:
     ) -> dict:
         """Place order with proper precision"""
         try:
+            from config import ASSET_PRECISION
+
+            # Get asset-specific precision
+            precision = ASSET_PRECISION.get(symbol, 2)
+
             # Round quantity to proper precision (Binance requirements)
-            # Most futures use 4 decimals, some use 3 or 2
             if quantity < 0.001:
                 return {}
 
-            quantity = round(quantity, 4)
+            quantity = round(quantity, precision)
 
             params = {
                 "symbol": symbol,
@@ -119,6 +123,11 @@ class BinanceBroker:
 
     def close_position(self, symbol: str, quantity: float, side: str = "SELL") -> dict:
         """Close position"""
+        from config import ASSET_PRECISION
+
+        precision = ASSET_PRECISION.get(symbol, 2)
+        quantity = round(quantity, precision)
+
         params = {
             "symbol": symbol,
             "side": side,
