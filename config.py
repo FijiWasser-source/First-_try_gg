@@ -17,7 +17,7 @@ logger.info(f"BINANCE_API_KEY loaded: {bool(BINANCE_API_KEY)}")
 logger.info(f"BINANCE_API_SECRET loaded: {bool(BINANCE_API_SECRET)}")
 
 # Trading Pairs
-TRADING_PAIRS = ["HBARUSDT"]  # HBAR for trading
+TRADING_PAIRS = ["HBARUSDT", "1INCHUSDT", "AAVAUSDT", "AVAXUSDT", "UNIUSDT", "DOGEUSDT", "XRPUSDT"]
 TIMEFRAME = "15m"  # 15 minute candles
 
 # Technical Indicators - New Setup
