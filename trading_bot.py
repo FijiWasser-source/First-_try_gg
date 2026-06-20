@@ -3,7 +3,7 @@ import logging
 import time
 import numpy as np
 from datetime import datetime
-from config import TRADING_PAIRS, TIMEFRAME, INDICATORS, STRATEGY
+from config import TRADING_PAIRS, TIMEFRAME, INDICATORS, STRATEGY, RISK_MANAGEMENT
 from indicators import TechnicalIndicators
 from broker import BinanceBroker
 from risk_manager import RiskManager
