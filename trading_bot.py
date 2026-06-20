@@ -34,6 +34,10 @@ logger.addHandler(file_handler)
 logger.addHandler(info_handler)
 logger.addHandler(error_handler)
 
+# Suppress verbose DEBUG logs from external libraries
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("requests").setLevel(logging.WARNING)
+
 
 class TradingBot:
     """Main trading bot class - Fractal + MFI + Keltner Strategy"""
