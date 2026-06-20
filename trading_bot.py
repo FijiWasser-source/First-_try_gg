@@ -5,7 +5,7 @@ import numpy as np
 from datetime import datetime
 from config import TRADING_PAIRS, TIMEFRAME, INDICATORS, STRATEGY
 from indicators import TechnicalIndicators
-from broker import ByBitBroker
+from broker import BinanceBroker
 from risk_manager import RiskManager
 from notifications import NotificationManager
 
@@ -24,7 +24,7 @@ class TradingBot:
     """Main trading bot class"""
 
     def __init__(self):
-        self.broker = ByBitBroker()
+        self.broker = BinanceBroker()
         self.risk_manager = RiskManager()
         self.indicators_calc = TechnicalIndicators()
         self.positions = {}  # Track open positions

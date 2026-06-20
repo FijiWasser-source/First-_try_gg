@@ -1,6 +1,5 @@
 """Broker Connection Module - Binance Futures API"""
 import logging
-from binance.cm_futures import CMFutures
 from binance.um_futures import UMFutures
 from config import BINANCE_API_KEY, BINANCE_API_SECRET, BINANCE_TESTNET
 
