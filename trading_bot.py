@@ -1,5 +1,6 @@
 """Main Trading Bot Engine - Advanced Fractal-Based Strategy"""
 import logging
+import sys
 import time
 import numpy as np
 from datetime import datetime
@@ -9,15 +10,29 @@ from broker import BinanceBroker
 from risk_manager import RiskManager
 from notifications import NotificationManager
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.FileHandler("trading_bot.log"),
-        logging.StreamHandler(),
-    ],
-)
-logger = logging.getLogger(__name__)
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+
+# File handler
+file_handler = logging.FileHandler("trading_bot.log")
+file_handler.setLevel(logging.DEBUG)
+file_handler.setFormatter(formatter)
+
+# Console handler for INFO/DEBUG (stdout - blue)
+info_handler = logging.StreamHandler(sys.stdout)
+info_handler.setLevel(logging.DEBUG)
+info_handler.setFormatter(formatter)
+info_handler.addFilter(lambda record: record.levelno <= logging.INFO)
+
+# Console handler for WARNING/ERROR (stderr - red)
+error_handler = logging.StreamHandler(sys.stderr)
+error_handler.setLevel(logging.WARNING)
+error_handler.setFormatter(formatter)
+
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
+logger.addHandler(file_handler)
+logger.addHandler(info_handler)
+logger.addHandler(error_handler)
 
 
 class TradingBot:
