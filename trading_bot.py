@@ -97,7 +97,7 @@ class TradingBot:
                 logger.warning(f"Invalid position size for {symbol}")
                 return
 
-            side = "Buy" if signal["signal"] == "BUY" else "Sell"
+            side = "BUY" if signal["signal"] == "BUY" else "SELL"
             sl = self.risk_manager.calculate_stop_loss(
                 entry_price,
                 "LONG" if signal["signal"] == "BUY" else "SHORT"
@@ -111,7 +111,7 @@ class TradingBot:
             order = self.broker.place_order(
                 symbol,
                 side,
-                "Market",
+                "MARKET",
                 qty,
             )
 
@@ -177,7 +177,7 @@ class TradingBot:
                     exit_reason = "Stop Loss"
 
             if exit_reason:
-                close_side = "Sell" if side == "Buy" else "Buy"
+                close_side = "SELL" if side == "BUY" else "BUY"
                 order = self.broker.close_position(symbol, qty, close_side)
 
                 if order:
