@@ -91,7 +91,7 @@ class TradingBot:
 
         signal = {"signal": "HOLD", "reason": "", "price": current_price, "atr": current_atr}
 
-        # 3 Signals: SMA + RSI + MACD (all 3 must agree)
+        # 3 Signals: SMA + RSI + MACD (need 2 out of 3)
 
         # Signal 1: SMA Trend
         sma_bullish = current_sma_short > current_sma_long
@@ -105,16 +105,19 @@ class TradingBot:
         macd_bullish = current_macd > current_macd_signal
         macd_bearish = not macd_bullish
 
-        # BUY: All 3 signals bullish
-        if sma_bullish and rsi_bullish and macd_bullish and symbol not in self.positions:
+        # BUY: Need 2+ bullish signals
+        bullish_count = sum([sma_bullish, rsi_bullish, macd_bullish])
+        bearish_count = sum([sma_bearish, rsi_bearish, macd_bearish])
+
+        if bullish_count >= 2 and symbol not in self.positions:
             signal["signal"] = "BUY"
-            signal["reason"] = f"Bullish (3/3): SMA:{current_sma_short:.2f}>{current_sma_long:.2f} RSI:{current_rsi:.2f} MACD bullish | ATR:{current_atr:.2f}"
+            signal["reason"] = f"Bullish (2/3): SMA:{sma_bullish} RSI:{rsi_bullish} MACD:{macd_bullish} | ATR:{current_atr:.2f}"
             logger.info(f"{symbol} BUY Signal: {signal['reason']}")
 
-        # SELL: All 3 signals bearish
-        elif sma_bearish and rsi_bearish and macd_bearish and symbol not in self.positions:
+        # SELL: Need 2+ bearish signals
+        elif bearish_count >= 2 and symbol not in self.positions:
             signal["signal"] = "SELL"
-            signal["reason"] = f"Bearish (3/3): SMA:{current_sma_short:.2f}<{current_sma_long:.2f} RSI:{current_rsi:.2f} MACD bearish | ATR:{current_atr:.2f}"
+            signal["reason"] = f"Bearish (2/3): SMA:{sma_bearish} RSI:{rsi_bearish} MACD:{macd_bearish} | ATR:{current_atr:.2f}"
             logger.info(f"{symbol} SELL Signal: {signal['reason']}")
 
         return signal
