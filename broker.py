@@ -1,30 +1,42 @@
-"""Broker Connection Module - ByBit API"""
+"""Broker Connection Module - Binance Futures API"""
 import logging
-from pybit.unified_trading import HTTP
-from config import BYBIT_API_KEY, BYBIT_API_SECRET, BYBIT_TESTNET
+from binance.cm_futures import CMFutures
+from binance.um_futures import UMFutures
+from config import BINANCE_API_KEY, BINANCE_API_SECRET, BINANCE_TESTNET
 
 logger = logging.getLogger(__name__)
 
 
-class ByBitBroker:
-    """ByBit broker connection and order management"""
+class BinanceBroker:
+    """Binance Futures broker connection and order management"""
 
     def __init__(self):
-        self.testnet = BYBIT_TESTNET
-        self.client = HTTP(
-            testnet=self.testnet,
-            api_key=BYBIT_API_KEY,
-            api_secret=BYBIT_API_SECRET,
-        )
-        logger.info(f"Connected to ByBit ({'testnet' if self.testnet else 'live'})")
+        self.testnet = BINANCE_TESTNET
+
+        if self.testnet:
+            self.client = UMFutures(
+                key=BINANCE_API_KEY,
+                secret=BINANCE_API_SECRET,
+                base_url="https://testnet.binancefuture.com"
+            )
+        else:
+            self.client = UMFutures(
+                key=BINANCE_API_KEY,
+                secret=BINANCE_API_SECRET
+            )
+
+        logger.info(f"Connected to Binance Futures ({'testnet' if self.testnet else 'live'})")
 
     def get_balance(self) -> dict:
         """Get account balance"""
         try:
-            response = self.client.get_wallet_balance(
-                accountType="UNIFIED"
-            )
-            return response.get("result", {})
+            response = self.client.account()
+            total_balance = float(response.get("totalWalletBalance", 0))
+            available_balance = float(response.get("availableBalance", 0))
+            return {
+                "total_balance": total_balance,
+                "available_balance": available_balance
+            }
         except Exception as e:
             logger.error(f"Failed to get balance: {e}")
             return {}
@@ -32,44 +44,40 @@ class ByBitBroker:
     def get_latest_price(self, symbol: str) -> float:
         """Get latest price for symbol"""
         try:
-            response = self.client.get_tickers(
-                category="linear",
-                symbol=symbol
-            )
-            if response["retCode"] == 0 and response["result"]["list"]:
-                return float(response["result"]["list"][0]["lastPrice"])
+            ticker = self.client.ticker_price(symbol=symbol)
+            return float(ticker["price"])
         except Exception as e:
             logger.error(f"Failed to get price for {symbol}: {e}")
-        return 0.0
+            return 0.0
 
     def place_order(
         self,
         symbol: str,
         side: str,
         order_type: str,
-        qty: float,
+        quantity: float,
         price: float = None,
     ) -> dict:
-        """Place an order (LONG or SHORT)"""
+        """Place an order"""
         try:
             params = {
-                "category": "linear",
                 "symbol": symbol,
-                "side": side,  # "Buy" or "Sell"
-                "orderType": order_type,  # "Market" or "Limit"
-                "qty": str(qty),
+                "side": side,  # "BUY" or "SELL"
+                "type": order_type,  # "MARKET" or "LIMIT"
+                "quantity": quantity,
             }
 
-            if order_type == "Limit" and price:
-                params["price"] = str(price)
+            if order_type == "LIMIT" and price:
+                params["price"] = price
+                params["timeInForce"] = "GTC"
 
-            response = self.client.place_order(**params)
+            response = self.client.new_order(**params)
 
-            if response["retCode"] == 0:
-                logger.info(f"Order placed: {symbol} {side} {qty}")
-                return response.get("result", {})
+            if response and "orderId" in response:
+                logger.info(f"Order placed: {symbol} {side} {quantity}")
+                return response
             else:
-                logger.error(f"Order failed: {response['retMsg']}")
+                logger.error(f"Order failed: {response}")
                 return {}
 
         except Exception as e:
@@ -79,25 +87,23 @@ class ByBitBroker:
     def close_position(
         self,
         symbol: str,
-        qty: float,
-        side: str = "Sell",
+        quantity: float,
+        side: str = "SELL",
     ) -> dict:
         """Close a position"""
         try:
-            response = self.client.place_order(
-                category="linear",
+            response = self.client.new_order(
                 symbol=symbol,
                 side=side,
-                orderType="Market",
-                qty=str(qty),
-                reduceOnly=True,
+                type="MARKET",
+                quantity=quantity,
             )
 
-            if response["retCode"] == 0:
+            if response and "orderId" in response:
                 logger.info(f"Position closed: {symbol}")
-                return response.get("result", {})
+                return response
             else:
-                logger.error(f"Close failed: {response['retMsg']}")
+                logger.error(f"Close failed: {response}")
                 return {}
 
         except Exception as e:
@@ -107,29 +113,36 @@ class ByBitBroker:
     def set_stop_loss_take_profit(
         self,
         symbol: str,
-        stop_loss: float,
-        take_profit: float,
-    ) -> dict:
+        stop_loss: float = None,
+        take_profit: float = None,
+    ) -> bool:
         """Set stop loss and take profit for a position"""
         try:
-            response = self.client.set_trading_stop(
-                category="linear",
-                symbol=symbol,
-                stopLoss=str(stop_loss),
-                takeProfit=str(take_profit),
-                tpslMode="Partial",
-            )
+            if stop_loss:
+                self.client.new_order(
+                    symbol=symbol,
+                    side="SELL",
+                    type="STOP_MARKET",
+                    stopPrice=stop_loss,
+                    closePosition=True,
+                )
+                logger.info(f"Stop Loss set for {symbol} at {stop_loss}")
 
-            if response["retCode"] == 0:
-                logger.info(f"SL/TP set for {symbol}")
-                return response.get("result", {})
-            else:
-                logger.error(f"SL/TP failed: {response['retMsg']}")
-                return {}
+            if take_profit:
+                self.client.new_order(
+                    symbol=symbol,
+                    side="SELL",
+                    type="TAKE_PROFIT_MARKET",
+                    stopPrice=take_profit,
+                    closePosition=True,
+                )
+                logger.info(f"Take Profit set for {symbol} at {take_profit}")
+
+            return True
 
         except Exception as e:
             logger.error(f"Failed to set SL/TP: {e}")
-            return {}
+            return False
 
     def get_klines(
         self,
@@ -139,17 +152,16 @@ class ByBitBroker:
     ) -> list:
         """Get OHLCV candle data"""
         try:
-            response = self.client.get_kline(
-                category="linear",
+            klines = self.client.klines(
                 symbol=symbol,
                 interval=interval,
-                limit=limit,
+                limit=limit
             )
 
-            if response["retCode"] == 0:
-                return response.get("result", {}).get("list", [])
+            if klines:
+                return klines
             else:
-                logger.error(f"Kline fetch failed: {response['retMsg']}")
+                logger.error(f"No klines for {symbol}")
                 return []
 
         except Exception as e:
@@ -159,14 +171,12 @@ class ByBitBroker:
     def get_positions(self) -> list:
         """Get open positions"""
         try:
-            response = self.client.get_positions(
-                category="linear"
-            )
+            positions = self.client.get_position_risk()
 
-            if response["retCode"] == 0:
-                return response.get("result", {}).get("list", [])
+            if positions:
+                return [p for p in positions if float(p.get("positionAmt", 0)) != 0]
             else:
-                logger.error(f"Position fetch failed: {response['retMsg']}")
+                logger.error("Position fetch failed")
                 return []
 
         except Exception as e:
