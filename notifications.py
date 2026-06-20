@@ -1,10 +1,13 @@
-"""Notifications Module - Email & Webhook alerts"""
+"""Notifications Module - Email & Webhook & Telegram alerts"""
 import logging
 import requests
 from datetime import datetime
 from config import NOTIFICATIONS
 
 logger = logging.getLogger(__name__)
+
+TELEGRAM_TOKEN = NOTIFICATIONS.get("telegram_token")
+TELEGRAM_CHAT_ID = NOTIFICATIONS.get("telegram_chat_id")
 
 
 class NotificationManager:
@@ -25,8 +28,8 @@ class NotificationManager:
             return
 
         message = f"""
-🤖 TRADE ALERT - {trade_type}
-Symbol: {symbol}
+🤖 <b>TRADE ALERT - {trade_type}</b>
+Symbol: <b>{symbol}</b>
 Entry Price: ${price:.2f}
 Quantity: {quantity}
 Stop Loss: ${stop_loss:.2f}
@@ -40,6 +43,7 @@ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             f"Trade Alert: {symbol} {trade_type}",
             message
         )
+        NotificationManager._send_telegram(message)
 
     @staticmethod
     def send_position_closed(
@@ -54,13 +58,16 @@ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         if not NOTIFICATIONS["enabled"]:
             return
 
+        pnl_pct = (pnl/entry_price)*100 if entry_price != 0 else 0
+        emoji = "✅" if pnl > 0 else "❌"
+
         message = f"""
-📊 POSITION CLOSED
-Symbol: {symbol}
+{emoji} <b>POSITION CLOSED</b>
+Symbol: <b>{symbol}</b>
 Entry Price: ${entry_price:.2f}
 Exit Price: ${exit_price:.2f}
 Quantity: {quantity}
-P&L: ${pnl:.2f} ({(pnl/entry_price)*100:.2f}%)
+P&L: <b>${pnl:.2f}</b> ({pnl_pct:.2f}%)
 Reason: {reason}
 Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         """
@@ -70,6 +77,7 @@ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             f"Position Closed: {symbol}",
             message
         )
+        NotificationManager._send_telegram(message)
 
     @staticmethod
     def send_daily_stats(stats: dict):
@@ -78,15 +86,16 @@ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             return
 
         message = f"""
-📈 DAILY TRADING SUMMARY
+📈 <b>DAILY TRADING SUMMARY</b>
 Date: {datetime.now().strftime('%Y-%m-%d')}
-Daily P&L: ${stats['daily_pnl']:.2f}
+Daily P&L: <b>${stats['daily_pnl']:.2f}</b>
 Daily Loss: ${stats['daily_loss']:.2f}
 Trades: {stats['trades_count']}
 Open Positions: {stats['open_positions']}
         """
 
         NotificationManager._send_webhook(message, "daily_summary")
+        NotificationManager._send_telegram(message)
 
     @staticmethod
     def _send_webhook(message: str, event_type: str):
@@ -120,3 +129,24 @@ Open Positions: {stats['open_positions']}
             logger.info(f"Email sent to {NOTIFICATIONS['email']}: {subject}")
         except Exception as e:
             logger.error(f"Email failed: {e}")
+
+    @staticmethod
+    def _send_telegram(message: str):
+        """Send notification via Telegram"""
+        if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
+            return
+
+        try:
+            url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+            payload = {
+                "chat_id": TELEGRAM_CHAT_ID,
+                "text": message,
+                "parse_mode": "HTML"
+            }
+            response = requests.post(url, json=payload, timeout=5)
+            if response.status_code == 200:
+                logger.info("Telegram notification sent")
+            else:
+                logger.error(f"Telegram failed: {response.text}")
+        except Exception as e:
+            logger.error(f"Telegram failed: {e}")

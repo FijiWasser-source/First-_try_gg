@@ -45,6 +45,8 @@ NOTIFICATIONS = {
     "enabled": True,
     "email": os.getenv("ALERT_EMAIL"),
     "webhook_url": os.getenv("WEBHOOK_URL"),  # Slack/Discord webhook
+    "telegram_token": os.getenv("TELEGRAM_TOKEN"),
+    "telegram_chat_id": os.getenv("TELEGRAM_CHAT_ID"),
 }
 
 # Logging
