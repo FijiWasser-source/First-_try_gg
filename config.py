@@ -12,7 +12,7 @@ BINANCE_TESTNET = True  # Set to False for live trading
 
 # Trading Pairs
 TRADING_PAIRS = ["BTCUSDT", "ETHUSDT"]  # Add more as needed
-TIMEFRAME = "15"  # Minutes
+TIMEFRAME = "15m"  # Binance format: 1m, 5m, 15m, 1h, 4h, 1d
 
 # Technical Indicators
 INDICATORS = {
