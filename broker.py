@@ -84,25 +84,37 @@ class BinanceBroker:
         quantity: float,
         price: float = None,
     ) -> dict:
-        """Place order"""
-        params = {
-            "symbol": symbol,
-            "side": side,
-            "type": order_type,
-            "quantity": quantity,
-        }
+        """Place order with proper precision"""
+        try:
+            # Round quantity to proper precision (Binance requirements)
+            # Most futures use 4 decimals, some use 3 or 2
+            if quantity < 0.001:
+                return {}
 
-        if order_type == "LIMIT" and price:
-            params["price"] = price
-            params["timeInForce"] = "GTC"
+            quantity = round(quantity, 4)
 
-        response = self._request("POST", "/fapi/v1/order", params, private=True)
+            params = {
+                "symbol": symbol,
+                "side": side,
+                "type": order_type,
+                "quantity": quantity,
+            }
 
-        if response and "orderId" in response:
-            logger.info(f"Order placed: {symbol} {side} {quantity}")
-            return response
-        else:
-            logger.error(f"Order failed: {response}")
+            if order_type == "LIMIT" and price:
+                params["price"] = price
+                params["timeInForce"] = "GTC"
+
+            response = self._request("POST", "/fapi/v1/order", params, private=True)
+
+            if response and "orderId" in response:
+                logger.info(f"Order placed: {symbol} {side} {quantity}")
+                return response
+            else:
+                logger.error(f"Order failed: {response}")
+                return {}
+
+        except Exception as e:
+            logger.error(f"Failed to place order: {e}")
             return {}
 
     def close_position(self, symbol: str, quantity: float, side: str = "SELL") -> dict:
