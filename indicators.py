@@ -1,4 +1,4 @@
-"""Technical Indicators Module"""
+"""Technical Indicators Module - New Setup"""
 import numpy as np
 import pandas as pd
 from config import INDICATORS
@@ -8,80 +8,9 @@ class TechnicalIndicators:
     """Calculate technical indicators for trading signals"""
 
     @staticmethod
-    def sma(data: np.ndarray, period: int) -> np.ndarray:
-        """Simple Moving Average"""
-        return pd.Series(data).rolling(window=period).mean().values
-
-    @staticmethod
     def ema(data: np.ndarray, period: int) -> np.ndarray:
         """Exponential Moving Average"""
         return pd.Series(data).ewm(span=period, adjust=False).mean().values
-
-    @staticmethod
-    def rsi(data: np.ndarray, period: int = 14) -> np.ndarray:
-        """Relative Strength Index"""
-        delta = np.diff(data)
-        seed = delta[:period + 1]
-        up = seed[seed >= 0].sum() / period
-        down = -seed[seed < 0].sum() / period
-        rs = up / down if down != 0 else 0
-
-        rsi = np.zeros_like(data)
-        rsi[:period] = 100.0 - 100.0 / (1.0 + rs)
-
-        for i in range(period, len(data)):
-            delta = data[i] - data[i - 1]
-            if delta > 0:
-                up = delta
-                down = 0.0
-            else:
-                up = 0.0
-                down = -delta
-
-            up = (up * period + up) / (period + 1)
-            down = (down * period + down) / (period + 1)
-
-            rs = up / down if down != 0 else 0
-            rsi[i] = 100.0 - 100.0 / (1.0 + rs)
-
-        return rsi
-
-    @staticmethod
-    def macd(data: np.ndarray, fast: int = 12, slow: int = 26, signal: int = 9):
-        """MACD (Moving Average Convergence Divergence)"""
-        ema_fast = pd.Series(data).ewm(span=fast, adjust=False).mean()
-        ema_slow = pd.Series(data).ewm(span=slow, adjust=False).mean()
-        macd_line = ema_fast - ema_slow
-        signal_line = macd_line.ewm(span=signal, adjust=False).mean()
-        histogram = macd_line - signal_line
-
-        return macd_line.values, signal_line.values, histogram.values
-
-    @staticmethod
-    def bollinger_bands(data: np.ndarray, period: int = 20, std_dev: int = 2):
-        """Bollinger Bands"""
-        sma = pd.Series(data).rolling(window=period).mean()
-        std = pd.Series(data).rolling(window=period).std()
-
-        upper_band = sma + (std * std_dev)
-        lower_band = sma - (std * std_dev)
-
-        return upper_band.values, sma.values, lower_band.values
-
-    @staticmethod
-    def stochastic_rsi(data: np.ndarray, period: int = 14, smooth_k: int = 3, smooth_d: int = 3):
-        """Stochastic RSI"""
-        rsi = TechnicalIndicators.rsi(data, period)
-        rsi_series = pd.Series(rsi)
-
-        lowest_rsi = rsi_series.rolling(window=period).min()
-        highest_rsi = rsi_series.rolling(window=period).max()
-
-        stoch_rsi = (rsi_series - lowest_rsi) / (highest_rsi - lowest_rsi + 1e-10)
-        stoch_k = stoch_rsi.rolling(window=smooth_k).mean()
-        stoch_d = stoch_k.rolling(window=smooth_d).mean()
-
-        return stoch_k.values, stoch_d.values
 
     @staticmethod
     def atr(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int = 14) -> np.ndarray:
@@ -99,35 +28,131 @@ class TechnicalIndicators:
 
         return atr.values
 
+    @staticmethod
+    def keltner_channels(close: np.ndarray, high: np.ndarray, low: np.ndarray,
+                        period: int = 20, multiplier: float = 2.0):
+        """Keltner Channels: EMA ± multiplier × ATR"""
+        ema_basis = TechnicalIndicators.ema(close, period)
+        atr_vals = TechnicalIndicators.atr(high, low, close, period)
+
+        upper = ema_basis + (multiplier * atr_vals)
+        lower = ema_basis - (multiplier * atr_vals)
+
+        return upper, ema_basis, lower
+
+    @staticmethod
+    def mfi(high: np.ndarray, low: np.ndarray, close: np.ndarray, volume: np.ndarray,
+            period: int = 14) -> np.ndarray:
+        """Money Flow Index (0-100)"""
+        high = pd.Series(high)
+        low = pd.Series(low)
+        close = pd.Series(close)
+        volume = pd.Series(volume)
+
+        typical_price = (high + low + close) / 3
+        raw_money_flow = typical_price * volume
+
+        positive_flow = raw_money_flow.copy()
+        negative_flow = raw_money_flow.copy()
+
+        for i in range(1, len(close)):
+            if typical_price.iloc[i] > typical_price.iloc[i-1]:
+                negative_flow.iloc[i] = 0
+            else:
+                positive_flow.iloc[i] = 0
+
+        positive_mf = positive_flow.rolling(window=period).sum()
+        negative_mf = negative_flow.rolling(window=period).sum()
+
+        money_ratio = positive_mf / (negative_mf + 1e-10)
+        mfi = 100 - (100 / (1 + money_ratio))
+
+        return mfi.values
+
+    @staticmethod
+    def fractal_low(low: np.ndarray, window: int = 5) -> np.ndarray:
+        """5-candle Fractal Low: Low < 2 candles left AND < 2 candles right"""
+        fractal = np.full_like(low, 0.0)
+
+        for i in range(window // 2, len(low) - window // 2):
+            mid = i
+            is_fractal = True
+
+            # Check 2 candles to the left
+            for j in range(1, window // 2 + 1):
+                if low[mid] >= low[mid - j]:
+                    is_fractal = False
+                    break
+
+            # Check 2 candles to the right
+            if is_fractal:
+                for j in range(1, window // 2 + 1):
+                    if low[mid] >= low[mid + j]:
+                        is_fractal = False
+                        break
+
+            if is_fractal:
+                fractal[mid] = low[mid]
+
+        return fractal
+
+    @staticmethod
+    def fractal_high(high: np.ndarray, window: int = 5) -> np.ndarray:
+        """5-candle Fractal High: High > 2 candles left AND > 2 candles right"""
+        fractal = np.full_like(high, 0.0)
+
+        for i in range(window // 2, len(high) - window // 2):
+            mid = i
+            is_fractal = True
+
+            # Check 2 candles to the left
+            for j in range(1, window // 2 + 1):
+                if high[mid] <= high[mid - j]:
+                    is_fractal = False
+                    break
+
+            # Check 2 candles to the right
+            if is_fractal:
+                for j in range(1, window // 2 + 1):
+                    if high[mid] <= high[mid + j]:
+                        is_fractal = False
+                        break
+
+            if is_fractal:
+                fractal[mid] = high[mid]
+
+        return fractal
+
     @classmethod
-    def calculate_all(cls, prices: np.ndarray) -> dict:
-        """Calculate all indicators for a price series"""
-        if len(prices) < INDICATORS["bb_period"]:
-            return {}
+    def calculate_all(cls, ohlcv: dict) -> dict:
+        """Calculate all indicators"""
+        closes = ohlcv["close"]
+        highs = ohlcv["high"]
+        lows = ohlcv["low"]
+        volumes = ohlcv.get("volume", np.ones_like(closes))
 
-        indicators = {
-            "sma_short": cls.sma(prices, INDICATORS["sma_short"]),
-            "sma_long": cls.sma(prices, INDICATORS["sma_long"]),
-            "ema_short": cls.ema(prices, INDICATORS["ema_short"]),
-            "ema_long": cls.ema(prices, INDICATORS["ema_long"]),
-            "rsi": cls.rsi(prices, INDICATORS["rsi_period"]),
+        ema20 = cls.ema(closes, INDICATORS["ema_short"])
+        ema50 = cls.ema(closes, INDICATORS["ema_long"])
+
+        kc_upper, kc_mid, kc_lower = cls.keltner_channels(
+            closes, highs, lows,
+            INDICATORS["keltner_basis"],
+            INDICATORS["keltner_multiplier"]
+        )
+
+        mfi = cls.mfi(highs, lows, closes, volumes, INDICATORS["mfi_period"])
+        fractal_lows = cls.fractal_low(lows, INDICATORS["fractal_window"])
+        fractal_highs = cls.fractal_high(highs, INDICATORS["fractal_window"])
+        atr_vals = cls.atr(highs, lows, closes, INDICATORS["atr_period"])
+
+        return {
+            "ema20": ema20,
+            "ema50": ema50,
+            "kc_upper": kc_upper,
+            "kc_mid": kc_mid,
+            "kc_lower": kc_lower,
+            "mfi": mfi,
+            "fractal_lows": fractal_lows,
+            "fractal_highs": fractal_highs,
+            "atr": atr_vals,
         }
-
-        macd, signal, histogram = cls.macd(
-            prices,
-            INDICATORS["macd_fast"],
-            INDICATORS["macd_slow"],
-            INDICATORS["macd_signal"],
-        )
-        indicators["macd"] = macd
-        indicators["macd_signal"] = signal
-        indicators["macd_histogram"] = histogram
-
-        upper_bb, middle_bb, lower_bb = cls.bollinger_bands(
-            prices, INDICATORS["bb_period"], INDICATORS["bb_std_dev"]
-        )
-        indicators["bb_upper"] = upper_bb
-        indicators["bb_middle"] = middle_bb
-        indicators["bb_lower"] = lower_bb
-
-        return indicators

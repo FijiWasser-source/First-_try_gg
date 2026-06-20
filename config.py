@@ -18,20 +18,34 @@ logger.info(f"BINANCE_API_SECRET loaded: {bool(BINANCE_API_SECRET)}")
 
 # Trading Pairs
 TRADING_PAIRS = ["BTCUSDT"]  # Only BTC for focused trading
-TIMEFRAME = "1h"  # 1 hour candles for better trends
+TIMEFRAME = "15m"  # 15 minute candles
 
-# Technical Indicators
+# Technical Indicators - New Setup
 INDICATORS = {
-    "sma_short": 10,      # Short-term moving average
-    "sma_long": 20,       # Long-term moving average
-    "rsi_period": 14,
-    "rsi_overbought": 70,
-    "rsi_oversold": 30,
-    "macd_fast": 12,
-    "macd_slow": 26,
-    "macd_signal": 9,
+    # EMA
+    "ema_short": 20,
+    "ema_long": 50,
+
+    # Keltner Channels
+    "keltner_basis": 20,  # EMA(20)
+    "keltner_multiplier": 2.0,  # ±2 × ATR
+
+    # MFI
+    "mfi_period": 14,
+    "mfi_long_threshold": 45,    # Below this = oversold
+    "mfi_short_threshold": 55,   # Above this = overbought
+    "mfi_lookback": 3,           # Last 3 candles
+
+    # Fractal
+    "fractal_window": 5,         # 5-candle fractal (2L, Mid, 2R)
+    "fractal_lookback": 10,      # Look back 10 candles for confirmed fractals
+
+    # ATR
     "atr_period": 14,
-    "volume_period": 20,
+    "atr_sl_puffer": 0.5,        # SL = Fractal ± 0.5 × ATR
+
+    # Risk/Reward
+    "risk_reward_ratio": 2.3,    # TP = Entry + 2.3 × R
 }
 
 # Risk Management
