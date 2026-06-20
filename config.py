@@ -37,12 +37,15 @@ INDICATORS = {
 }
 
 # Risk Management
+ACCOUNT_SIZE = 5000  # USD
+RISK_PER_TRADE_PCT = 1.0  # 1% risk per trade = $50
+MAX_RISK_PER_TRADE = ACCOUNT_SIZE * (RISK_PER_TRADE_PCT / 100)  # $50
+
 RISK_MANAGEMENT = {
-    "max_daily_loss": 100,      # USD - Max loss per day
-    "max_daily_profit": 500,    # USD - Max profit target per day
-    "stop_loss_pct": 1.5,       # % of entry price
+    "max_daily_loss": MAX_RISK_PER_TRADE * 3,  # Stop after 3 losses
+    "max_daily_profit": MAX_RISK_PER_TRADE * 10,  # Target 10 wins per day
+    "stop_loss_pct": 1.5,       # % of entry price (will be adjusted)
     "take_profit_pct": 3.0,     # % of entry price
-    "position_size_usd": 100,   # USD per trade
     "max_open_positions": 3,    # Max concurrent trades
 }
 

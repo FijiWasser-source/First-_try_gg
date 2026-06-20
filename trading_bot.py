@@ -43,7 +43,7 @@ class TradingBot:
         return closes
 
     def generate_signals(self, symbol: str) -> dict:
-        """Generate trading signals based on technical indicators"""
+        """Generate trading signals using combined strategy: SMA + RSI + MACD"""
         prices = self.fetch_price_data(symbol)
 
         if len(prices) < INDICATORS["bb_period"]:
@@ -63,18 +63,34 @@ class TradingBot:
 
         signal = {"signal": "HOLD", "reason": "", "price": current_price}
 
-        # Simplified Strategy: Just SMA Crossover (easier to get signals)
-        # BUY: Short MA > Long MA (bullish)
-        # SELL: Short MA < Long MA (bearish)
+        # Combined Strategy: SMA (Trend) + RSI (Confirmation) + MACD (Momentum)
+        # Need 2 out of 3 signals to be bullish/bearish
 
-        if sma_short > sma_long and symbol not in self.positions:
+        # Signal 1: SMA Trend
+        sma_bullish = sma_short > sma_long
+        sma_bearish = sma_short < sma_long
+
+        # Signal 2: RSI Confirmation (Overbought/Oversold)
+        rsi_bullish = current_rsi < INDICATORS["rsi_overbought"]  # Not yet overbought
+        rsi_bearish = current_rsi > INDICATORS["rsi_oversold"]    # Not yet oversold
+
+        # Signal 3: MACD Momentum
+        macd_bullish = current_macd > current_signal
+        macd_bearish = current_macd < current_signal
+
+        # BUY: Need 2+ bullish signals
+        bullish_count = sum([sma_bullish, rsi_bullish, macd_bullish])
+        # SELL: Need 2+ bearish signals
+        bearish_count = sum([sma_bearish, rsi_bearish, macd_bearish])
+
+        if bullish_count >= 2 and symbol not in self.positions:
             signal["signal"] = "BUY"
-            signal["reason"] = f"SMA bullish (short:{sma_short:.2f} > long:{sma_long:.2f}), RSI: {current_rsi:.2f}"
+            signal["reason"] = f"Bullish ({bullish_count}/3): SMA:{sma_bullish} RSI:{rsi_bullish} MACD:{macd_bullish} | RSI:{current_rsi:.2f}"
             logger.info(f"{symbol} Signal: {signal['reason']}")
 
-        elif sma_short < sma_long and symbol not in self.positions:
+        elif bearish_count >= 2 and symbol not in self.positions:
             signal["signal"] = "SELL"
-            signal["reason"] = f"SMA bearish (short:{sma_short:.2f} < long:{sma_long:.2f}), RSI: {current_rsi:.2f}"
+            signal["reason"] = f"Bearish ({bearish_count}/3): SMA:{sma_bearish} RSI:{rsi_bearish} MACD:{macd_bearish} | RSI:{current_rsi:.2f}"
             logger.info(f"{symbol} Signal: {signal['reason']}")
 
         return signal
@@ -91,11 +107,6 @@ class TradingBot:
 
         try:
             entry_price = signal["price"]
-            qty = self.risk_manager.calculate_position_size(entry_price, 10000)
-
-            if qty == 0:
-                logger.warning(f"Invalid position size for {symbol}")
-                return
 
             side = "BUY" if signal["signal"] == "BUY" else "SELL"
             sl = self.risk_manager.calculate_stop_loss(
@@ -106,6 +117,13 @@ class TradingBot:
                 entry_price,
                 "LONG" if signal["signal"] == "BUY" else "SHORT"
             )
+
+            # Calculate position size based on risk (1% rule)
+            qty = self.risk_manager.calculate_position_size(entry_price, sl)
+
+            if qty == 0:
+                logger.warning(f"Invalid position size for {symbol}")
+                return
 
             # Place order
             order = self.broker.place_order(

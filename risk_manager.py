@@ -41,10 +41,21 @@ class RiskManager:
 
         return True
 
-    def calculate_position_size(self, entry_price: float, account_balance: float) -> float:
-        """Calculate position size based on risk parameters"""
-        position_size_usd = RISK_MANAGEMENT["position_size_usd"]
-        quantity = position_size_usd / entry_price
+    def calculate_position_size(self, entry_price: float, stop_loss: float) -> float:
+        """Calculate position size based on 1% risk rule"""
+        from config import MAX_RISK_PER_TRADE
+
+        # Risk amount per trade
+        risk_amount = MAX_RISK_PER_TRADE  # $50
+
+        # Calculate distance to stop loss
+        sl_distance = abs(entry_price - stop_loss)
+
+        if sl_distance == 0:
+            sl_distance = entry_price * 0.015  # Default 1.5% if no SL
+
+        # Position size = Risk / Distance per unit
+        quantity = risk_amount / sl_distance
         return round(quantity, 4)
 
     def calculate_stop_loss(self, entry_price: float, side: str = "LONG") -> float:
