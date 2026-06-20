@@ -307,6 +307,11 @@ class TradingBot:
                         f"❌ Exit: {symbol} {exit_reason} @ ${current_price:.2f} | P&L: ${pnl:.2f}"
                     )
 
+                    stats = self.risk_manager.get_daily_stats()
+                    logger.info(f"Daily Stats: P&L=${stats['daily_pnl']:.2f} | "
+                               f"Loss=${stats['daily_loss']:.2f} | "
+                               f"Positions={stats['open_positions']}")
+
         except Exception as e:
             logger.error(f"Exit check failed for {symbol}: {e}")
 
@@ -327,12 +332,6 @@ class TradingBot:
                         # Execute entry if signal
                         if signal["signal"] in ["BUY", "SELL"]:
                             self.execute_entry(symbol, signal)
-
-                    # Log daily stats every minute
-                    stats = self.risk_manager.get_daily_stats()
-                    logger.info(f"Daily Stats: P&L=${stats['daily_pnl']:.2f} | "
-                               f"Loss=${stats['daily_loss']:.2f} | "
-                               f"Positions={stats['open_positions']}")
 
                     # Sleep before next iteration
                     time.sleep(60)  # Check every minute
