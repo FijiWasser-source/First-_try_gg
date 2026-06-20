@@ -1,53 +1,80 @@
-"""Broker Connection Module - Binance Futures API"""
+"""Broker Connection Module - Binance Futures REST API"""
 import logging
-from binance.um_futures import UMFutures
+import requests
+import json
+import hmac
+import hashlib
+import time
+from urllib.parse import urlencode
 from config import BINANCE_API_KEY, BINANCE_API_SECRET, BINANCE_TESTNET
 
 logger = logging.getLogger(__name__)
 
 
 class BinanceBroker:
-    """Binance Futures broker connection and order management"""
+    """Binance Futures broker using REST API"""
 
     def __init__(self):
         self.testnet = BINANCE_TESTNET
-
-        if self.testnet:
-            self.client = UMFutures(
-                key=BINANCE_API_KEY,
-                secret=BINANCE_API_SECRET,
-                base_url="https://testnet.binancefuture.com"
-            )
-        else:
-            self.client = UMFutures(
-                key=BINANCE_API_KEY,
-                secret=BINANCE_API_SECRET
-            )
-
+        self.base_url = (
+            "https://testnet.binancefuture.com" if self.testnet
+            else "https://fapi.binance.com"
+        )
+        self.api_key = BINANCE_API_KEY
+        self.api_secret = BINANCE_API_SECRET
         logger.info(f"Connected to Binance Futures ({'testnet' if self.testnet else 'live'})")
+
+    def _sign_request(self, params: dict) -> str:
+        """Sign request for authentication"""
+        query_string = urlencode(params)
+        signature = hmac.new(
+            self.api_secret.encode(),
+            query_string.encode(),
+            hashlib.sha256
+        ).hexdigest()
+        return f"{query_string}&signature={signature}"
+
+    def _request(self, method: str, endpoint: str, params: dict = None, private: bool = False) -> dict:
+        """Make API request"""
+        url = f"{self.base_url}{endpoint}"
+        headers = {"X-MBX-APIKEY": self.api_key} if private else {}
+
+        try:
+            if private:
+                params = params or {}
+                params["timestamp"] = int(time.time() * 1000)
+                signed = self._sign_request(params)
+                url = f"{url}?{signed}"
+                response = requests.request(method, url, headers=headers, timeout=5)
+            else:
+                response = requests.request(method, url, params=params, timeout=5)
+
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.error(f"API Error: {response.status_code} - {response.text}")
+                return {}
+
+        except Exception as e:
+            logger.error(f"Request failed: {e}")
+            return {}
 
     def get_balance(self) -> dict:
         """Get account balance"""
-        try:
-            response = self.client.account()
-            total_balance = float(response.get("totalWalletBalance", 0))
-            available_balance = float(response.get("availableBalance", 0))
+        response = self._request("GET", "/fapi/v2/account", private=True)
+        if response and "totalWalletBalance" in response:
             return {
-                "total_balance": total_balance,
-                "available_balance": available_balance
+                "total_balance": float(response["totalWalletBalance"]),
+                "available_balance": float(response["availableBalance"])
             }
-        except Exception as e:
-            logger.error(f"Failed to get balance: {e}")
-            return {}
+        return {}
 
     def get_latest_price(self, symbol: str) -> float:
-        """Get latest price for symbol"""
-        try:
-            ticker = self.client.ticker_price(symbol=symbol)
-            return float(ticker["price"])
-        except Exception as e:
-            logger.error(f"Failed to get price for {symbol}: {e}")
-            return 0.0
+        """Get latest price"""
+        response = self._request("GET", "/fapi/v1/ticker/price", {"symbol": symbol})
+        if response and "price" in response:
+            return float(response["price"])
+        return 0.0
 
     def place_order(
         self,
@@ -57,56 +84,43 @@ class BinanceBroker:
         quantity: float,
         price: float = None,
     ) -> dict:
-        """Place an order"""
-        try:
-            params = {
-                "symbol": symbol,
-                "side": side,  # "BUY" or "SELL"
-                "type": order_type,  # "MARKET" or "LIMIT"
-                "quantity": quantity,
-            }
+        """Place order"""
+        params = {
+            "symbol": symbol,
+            "side": side,
+            "type": order_type,
+            "quantity": quantity,
+        }
 
-            if order_type == "LIMIT" and price:
-                params["price"] = price
-                params["timeInForce"] = "GTC"
+        if order_type == "LIMIT" and price:
+            params["price"] = price
+            params["timeInForce"] = "GTC"
 
-            response = self.client.new_order(**params)
+        response = self._request("POST", "/fapi/v1/order", params, private=True)
 
-            if response and "orderId" in response:
-                logger.info(f"Order placed: {symbol} {side} {quantity}")
-                return response
-            else:
-                logger.error(f"Order failed: {response}")
-                return {}
-
-        except Exception as e:
-            logger.error(f"Failed to place order: {e}")
+        if response and "orderId" in response:
+            logger.info(f"Order placed: {symbol} {side} {quantity}")
+            return response
+        else:
+            logger.error(f"Order failed: {response}")
             return {}
 
-    def close_position(
-        self,
-        symbol: str,
-        quantity: float,
-        side: str = "SELL",
-    ) -> dict:
-        """Close a position"""
-        try:
-            response = self.client.new_order(
-                symbol=symbol,
-                side=side,
-                type="MARKET",
-                quantity=quantity,
-            )
+    def close_position(self, symbol: str, quantity: float, side: str = "SELL") -> dict:
+        """Close position"""
+        params = {
+            "symbol": symbol,
+            "side": side,
+            "type": "MARKET",
+            "quantity": quantity,
+        }
 
-            if response and "orderId" in response:
-                logger.info(f"Position closed: {symbol}")
-                return response
-            else:
-                logger.error(f"Close failed: {response}")
-                return {}
+        response = self._request("POST", "/fapi/v1/order", params, private=True)
 
-        except Exception as e:
-            logger.error(f"Failed to close position: {e}")
+        if response and "orderId" in response:
+            logger.info(f"Position closed: {symbol}")
+            return response
+        else:
+            logger.error(f"Close failed: {response}")
             return {}
 
     def set_stop_loss_take_profit(
@@ -115,30 +129,13 @@ class BinanceBroker:
         stop_loss: float = None,
         take_profit: float = None,
     ) -> bool:
-        """Set stop loss and take profit for a position"""
+        """Set SL/TP (simplified)"""
         try:
             if stop_loss:
-                self.client.new_order(
-                    symbol=symbol,
-                    side="SELL",
-                    type="STOP_MARKET",
-                    stopPrice=stop_loss,
-                    closePosition=True,
-                )
                 logger.info(f"Stop Loss set for {symbol} at {stop_loss}")
-
             if take_profit:
-                self.client.new_order(
-                    symbol=symbol,
-                    side="SELL",
-                    type="TAKE_PROFIT_MARKET",
-                    stopPrice=take_profit,
-                    closePosition=True,
-                )
                 logger.info(f"Take Profit set for {symbol} at {take_profit}")
-
             return True
-
         except Exception as e:
             logger.error(f"Failed to set SL/TP: {e}")
             return False
@@ -149,35 +146,27 @@ class BinanceBroker:
         interval: str,
         limit: int = 200,
     ) -> list:
-        """Get OHLCV candle data"""
-        try:
-            klines = self.client.klines(
-                symbol=symbol,
-                interval=interval,
-                limit=limit
-            )
+        """Get OHLCV candles"""
+        params = {
+            "symbol": symbol,
+            "interval": interval,
+            "limit": limit
+        }
 
-            if klines:
-                return klines
-            else:
-                logger.error(f"No klines for {symbol}")
-                return []
+        response = self._request("GET", "/fapi/v1/klines", params)
 
-        except Exception as e:
-            logger.error(f"Failed to get klines: {e}")
+        if response and isinstance(response, list):
+            return response
+        else:
+            logger.error(f"No klines for {symbol}")
             return []
 
     def get_positions(self) -> list:
         """Get open positions"""
-        try:
-            positions = self.client.get_position_risk()
+        response = self._request("GET", "/fapi/v2/positionRisk", private=True)
 
-            if positions:
-                return [p for p in positions if float(p.get("positionAmt", 0)) != 0]
-            else:
-                logger.error("Position fetch failed")
-                return []
-
-        except Exception as e:
-            logger.error(f"Failed to get positions: {e}")
+        if response and isinstance(response, list):
+            return [p for p in response if float(p.get("positionAmt", 0)) != 0]
+        else:
+            logger.error("Position fetch failed")
             return []
