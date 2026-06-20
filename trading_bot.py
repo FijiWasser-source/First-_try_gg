@@ -30,68 +30,109 @@ class TradingBot:
         self.positions = {}  # Track open positions
         self.last_signals = {}  # Track last signal to avoid duplicates
 
-    def fetch_price_data(self, symbol: str, limit: int = 100) -> np.ndarray:
-        """Fetch OHLCV data and return closing prices"""
+    def fetch_price_data(self, symbol: str, limit: int = 100) -> dict:
+        """Fetch OHLCV data and return OHLCV as dict"""
         klines = self.broker.get_klines(symbol, TIMEFRAME, limit)
 
         if not klines:
             logger.warning(f"No klines for {symbol}")
-            return np.array([])
+            return {}
 
         # klines format: [time, open, high, low, close, volume]
+        opens = np.array([float(k[1]) for k in klines])
+        highs = np.array([float(k[2]) for k in klines])
+        lows = np.array([float(k[3]) for k in klines])
         closes = np.array([float(k[4]) for k in klines])
-        return closes
+        volumes = np.array([float(k[7]) for k in klines])  # Quote asset volume
+
+        return {
+            "open": opens,
+            "high": highs,
+            "low": lows,
+            "close": closes,
+            "volume": volumes
+        }
+
+    def check_volume(self, volumes: np.ndarray) -> bool:
+        """Check if current volume is sufficient"""
+        avg_volume = np.mean(volumes[:-1])  # Average of previous candles
+        current_volume = volumes[-1]
+        threshold = RISK_MANAGEMENT["min_volume_threshold"]
+
+        return current_volume > (avg_volume * threshold)
 
     def generate_signals(self, symbol: str) -> dict:
-        """Generate trading signals using combined strategy: SMA + RSI + MACD"""
-        prices = self.fetch_price_data(symbol)
+        """Generate trading signals: SMA + RSI + MACD + Stochastic RSI (need 3/4)"""
+        ohlcv = self.fetch_price_data(symbol)
 
-        if len(prices) < INDICATORS["bb_period"]:
+        if not ohlcv or len(ohlcv["close"]) < INDICATORS["atr_period"]:
             return {"signal": "HOLD", "reason": "Insufficient data"}
 
-        indicators = self.indicators_calc.calculate_all(prices)
+        # Check volume first
+        if not self.check_volume(ohlcv["volume"]):
+            return {"signal": "HOLD", "reason": "Volume too low"}
 
-        if not indicators:
-            return {"signal": "HOLD", "reason": "Indicator calculation failed"}
+        # Calculate indicators
+        closes = ohlcv["close"]
+        sma_short = self.indicators_calc.sma(closes, INDICATORS["sma_short"])
+        sma_long = self.indicators_calc.sma(closes, INDICATORS["sma_long"])
+        current_rsi = self.indicators_calc.rsi(closes, INDICATORS["rsi_period"])[-1]
+        macd, macd_signal, _ = self.indicators_calc.macd(
+            closes, INDICATORS["macd_fast"], INDICATORS["macd_slow"], INDICATORS["macd_signal"]
+        )
+        stoch_k, stoch_d = self.indicators_calc.stochastic_rsi(
+            closes, INDICATORS["stoch_rsi_period"],
+            INDICATORS["stoch_rsi_smooth_k"], INDICATORS["stoch_rsi_smooth_d"]
+        )
+        atr = self.indicators_calc.atr(ohlcv["high"], ohlcv["low"], closes, INDICATORS["atr_period"])
 
-        current_price = prices[-1]
-        current_rsi = indicators["rsi"][-1]
-        current_macd = indicators["macd"][-1]
-        current_signal = indicators["macd_signal"][-1]
-        sma_short = indicators["sma_short"][-1]
-        sma_long = indicators["sma_long"][-1]
+        current_price = closes[-1]
+        current_sma_short = sma_short[-1]
+        current_sma_long = sma_long[-1]
+        current_macd = macd[-1]
+        current_macd_signal = macd_signal[-1]
+        current_stoch_k = stoch_k[-1]
+        current_stoch_d = stoch_d[-1]
+        current_atr = atr[-1]
 
-        signal = {"signal": "HOLD", "reason": "", "price": current_price}
+        signal = {"signal": "HOLD", "reason": "", "price": current_price, "atr": current_atr}
 
-        # Combined Strategy: SMA (Trend) + RSI (Confirmation) + MACD (Momentum)
-        # Need 2 out of 3 signals to be bullish/bearish
+        # 4 Signals: SMA + RSI + MACD + Stochastic RSI
+        # Need 3 out of 4 to be bullish/bearish
 
         # Signal 1: SMA Trend
-        sma_bullish = sma_short > sma_long
-        sma_bearish = sma_short < sma_long
+        sma_bullish = current_sma_short > current_sma_long
+        sma_bearish = not sma_bullish
 
-        # Signal 2: RSI Confirmation (Overbought/Oversold)
-        rsi_bullish = current_rsi < INDICATORS["rsi_overbought"]  # Not yet overbought
-        rsi_bearish = current_rsi > INDICATORS["rsi_oversold"]    # Not yet oversold
+        # Signal 2: RSI (not overbought/oversold)
+        rsi_bullish = current_rsi < INDICATORS["rsi_overbought"]
+        rsi_bearish = current_rsi > INDICATORS["rsi_oversold"]
 
         # Signal 3: MACD Momentum
-        macd_bullish = current_macd > current_signal
-        macd_bearish = current_macd < current_signal
+        macd_bullish = current_macd > current_macd_signal
+        macd_bearish = not macd_bullish
 
-        # BUY: Need 2+ bullish signals
-        bullish_count = sum([sma_bullish, rsi_bullish, macd_bullish])
-        # SELL: Need 2+ bearish signals
-        bearish_count = sum([sma_bearish, rsi_bearish, macd_bearish])
+        # Signal 4: Stochastic RSI
+        stoch_bullish = current_stoch_k < 0.8  # Not overbought
+        stoch_bearish = current_stoch_k > 0.2  # Not oversold
 
-        if bullish_count >= 2 and symbol not in self.positions:
+        bullish_signals = [sma_bullish, rsi_bullish, macd_bullish, stoch_bullish]
+        bearish_signals = [sma_bearish, rsi_bearish, macd_bearish, stoch_bearish]
+
+        bullish_count = sum(bullish_signals)
+        bearish_count = sum(bearish_signals)
+
+        # BUY: Need 3+ bullish signals
+        if bullish_count >= 3 and symbol not in self.positions:
             signal["signal"] = "BUY"
-            signal["reason"] = f"Bullish ({bullish_count}/3): SMA:{sma_bullish} RSI:{rsi_bullish} MACD:{macd_bullish} | RSI:{current_rsi:.2f}"
-            logger.info(f"{symbol} Signal: {signal['reason']}")
+            signal["reason"] = f"Bullish ({bullish_count}/4): SMA:{sma_bullish} RSI:{rsi_bullish} MACD:{macd_bullish} Stoch:{stoch_bullish}"
+            logger.info(f"{symbol} BUY Signal: {signal['reason']}")
 
-        elif bearish_count >= 2 and symbol not in self.positions:
+        # SELL: Need 3+ bearish signals
+        elif bearish_count >= 3 and symbol not in self.positions:
             signal["signal"] = "SELL"
-            signal["reason"] = f"Bearish ({bearish_count}/3): SMA:{sma_bearish} RSI:{rsi_bearish} MACD:{macd_bearish} | RSI:{current_rsi:.2f}"
-            logger.info(f"{symbol} Signal: {signal['reason']}")
+            signal["reason"] = f"Bearish ({bearish_count}/4): SMA:{sma_bearish} RSI:{rsi_bearish} MACD:{macd_bearish} Stoch:{stoch_bearish}"
+            logger.info(f"{symbol} SELL Signal: {signal['reason']}")
 
         return signal
 
@@ -107,16 +148,25 @@ class TradingBot:
 
         try:
             entry_price = signal["price"]
+            atr = signal.get("atr", 500)  # Default 500 if not available
 
             side = "BUY" if signal["signal"] == "BUY" else "SELL"
-            sl = self.risk_manager.calculate_stop_loss(
-                entry_price,
-                "LONG" if signal["signal"] == "BUY" else "SHORT"
-            )
-            tp = self.risk_manager.calculate_take_profit(
-                entry_price,
-                "LONG" if signal["signal"] == "BUY" else "SHORT"
-            )
+
+            # Calculate SL/TP based on ATR
+            if RISK_MANAGEMENT["use_atr"]:
+                sl_atr_sl = RISK_MANAGEMENT["atr_sl_multiplier"]
+                tp_atr_tp = RISK_MANAGEMENT["atr_tp_multiplier"]
+
+                if side == "BUY":
+                    sl = entry_price - (atr * sl_atr_sl)
+                    tp = entry_price + (atr * tp_atr_tp)
+                else:  # SELL
+                    sl = entry_price + (atr * sl_atr_sl)
+                    tp = entry_price - (atr * tp_atr_tp)
+            else:
+                # Fallback to percentage-based
+                sl = self.risk_manager.calculate_stop_loss(entry_price, side)
+                tp = self.risk_manager.calculate_take_profit(entry_price, side)
 
             # Calculate position size based on risk (1% rule)
             qty = self.risk_manager.calculate_position_size(entry_price, sl)
