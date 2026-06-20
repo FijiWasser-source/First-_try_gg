@@ -63,18 +63,19 @@ class TradingBot:
 
         signal = {"signal": "HOLD", "reason": "", "price": current_price}
 
-        # Strategy: Moving Average Crossover + RSI confirmation
-        if sma_short > sma_long:
-            if current_rsi < INDICATORS["rsi_overbought"]:
-                if current_macd > current_signal:
-                    signal["signal"] = "BUY"
-                    signal["reason"] = f"MA cross up, RSI: {current_rsi:.2f}, MACD bullish"
+        # Simplified Strategy: Just SMA Crossover (easier to get signals)
+        # BUY: Short MA > Long MA (bullish)
+        # SELL: Short MA < Long MA (bearish)
 
-        elif sma_short < sma_long:
-            if current_rsi > INDICATORS["rsi_oversold"]:
-                if current_macd < current_signal:
-                    signal["signal"] = "SELL"
-                    signal["reason"] = f"MA cross down, RSI: {current_rsi:.2f}, MACD bearish"
+        if sma_short > sma_long and symbol not in self.positions:
+            signal["signal"] = "BUY"
+            signal["reason"] = f"SMA bullish (short:{sma_short:.2f} > long:{sma_long:.2f}), RSI: {current_rsi:.2f}"
+            logger.info(f"{symbol} Signal: {signal['reason']}")
+
+        elif sma_short < sma_long and symbol not in self.positions:
+            signal["signal"] = "SELL"
+            signal["reason"] = f"SMA bearish (short:{sma_short:.2f} < long:{sma_long:.2f}), RSI: {current_rsi:.2f}"
+            logger.info(f"{symbol} Signal: {signal['reason']}")
 
         return signal
 
