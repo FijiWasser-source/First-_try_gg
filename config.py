@@ -10,6 +10,12 @@ BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
 BINANCE_API_SECRET = os.getenv("BINANCE_API_SECRET")
 BINANCE_TESTNET = True  # Set to False for live trading
 
+# Debug: Check if env vars are loaded
+import logging
+logger = logging.getLogger(__name__)
+logger.info(f"BINANCE_API_KEY loaded: {bool(BINANCE_API_KEY)}")
+logger.info(f"BINANCE_API_SECRET loaded: {bool(BINANCE_API_SECRET)}")
+
 # Trading Pairs
 TRADING_PAIRS = ["BTCUSDT", "ETHUSDT"]  # Add more as needed
 TIMEFRAME = "15m"  # Binance format: 1m, 5m, 15m, 1h, 4h, 1d
