@@ -22,33 +22,70 @@ class BinanceBroker:
         )
         self.api_key = BINANCE_API_KEY
         self.api_secret = BINANCE_API_SECRET
-        self.lot_size_cache = {}
+        self.lot_size_cache = {}    # symbol -> step size (quantity)
+        self.tick_size_cache = {}   # symbol -> tick size (price)
         logger.info(f"Connected to Binance Futures ({'testnet' if self.testnet else 'live'})")
         self.load_exchange_info()
 
+    @staticmethod
+    def _decimals_from_step(step: float) -> int:
+        """Count the number of decimal places implied by a step/tick size"""
+        s = f"{step:.10f}".rstrip("0")
+        if "." in s:
+            return len(s.split(".")[1])
+        return 0
+
     def load_exchange_info(self):
-        """Load exchange info with lot size for all trading pairs"""
+        """Load exchange info with lot size (qty) and tick size (price) for all pairs"""
         try:
             response = self._request("GET", "/fapi/v1/exchangeInfo")
             if response and "symbols" in response:
                 for symbol_info in response["symbols"]:
                     symbol = symbol_info.get("symbol")
-                    if symbol:
-                        lot_size = 1.0
-                        for filter_item in symbol_info.get("filters", []):
-                            if filter_item.get("filterType") == "LOT_SIZE":
-                                lot_size = float(filter_item.get("stepSize", 1.0))
-                                break
-                        self.lot_size_cache[symbol] = lot_size
-                logger.info(f"Loaded lot size for {len(self.lot_size_cache)} symbols")
+                    if not symbol:
+                        continue
+                    lot_size = 1.0
+                    tick_size = 0.01
+                    for filter_item in symbol_info.get("filters", []):
+                        ftype = filter_item.get("filterType")
+                        if ftype == "LOT_SIZE":
+                            lot_size = float(filter_item.get("stepSize", 1.0))
+                        elif ftype == "PRICE_FILTER":
+                            tick_size = float(filter_item.get("tickSize", 0.01))
+                    self.lot_size_cache[symbol] = lot_size
+                    self.tick_size_cache[symbol] = tick_size
+                logger.info(f"Loaded lot/tick size for {len(self.lot_size_cache)} symbols")
             else:
                 logger.warning("Failed to load exchange info")
         except Exception as e:
             logger.error(f"Error loading exchange info: {e}")
 
     def get_lot_size(self, symbol: str) -> float:
-        """Get lot size (step size) for a symbol"""
+        """Get lot size (quantity step size) for a symbol"""
         return self.lot_size_cache.get(symbol, 1.0)
+
+    def get_tick_size(self, symbol: str) -> float:
+        """Get tick size (price step size) for a symbol"""
+        return self.tick_size_cache.get(symbol, 0.01)
+
+    def format_quantity(self, symbol: str, quantity: float) -> float:
+        """Round quantity down to the symbol's lot size and format with correct decimals"""
+        step = self.get_lot_size(symbol)
+        if step <= 0:
+            return quantity
+        adjusted = (int(quantity / step)) * step
+        adjusted = max(adjusted, step)
+        decimals = self._decimals_from_step(step)
+        return float(f"{adjusted:.{decimals}f}")
+
+    def format_price(self, symbol: str, price: float) -> float:
+        """Round price to the symbol's tick size and format with correct decimals"""
+        tick = self.get_tick_size(symbol)
+        if tick <= 0:
+            return price
+        adjusted = round(price / tick) * tick
+        decimals = self._decimals_from_step(tick)
+        return float(f"{adjusted:.{decimals}f}")
 
     def _sign_request(self, params: dict) -> str:
         """Sign request for authentication"""
@@ -102,14 +139,6 @@ class BinanceBroker:
             return float(response["price"])
         return 0.0
 
-    def _adjust_quantity_to_lot_size(self, symbol: str, quantity: float) -> float:
-        """Adjust quantity to match Binance lot size requirements"""
-        lot_size = self.get_lot_size(symbol)
-        if lot_size <= 0:
-            return quantity
-        adjusted = (int(quantity / lot_size)) * lot_size
-        return max(adjusted, lot_size)
-
     def place_order(
         self,
         symbol: str,
@@ -118,24 +147,17 @@ class BinanceBroker:
         quantity: float,
         price: float = None,
     ) -> dict:
-        """Place order with proper precision and lot size"""
+        """Place order with exchange-derived quantity and price precision"""
         try:
-            from config import ASSET_PRECISION
-
-            if quantity < 0.001:
+            if quantity <= 0:
                 logger.debug(f"Quantity {quantity} too small for {symbol}")
                 return {}
 
-            # Adjust quantity to lot size first
-            quantity = self._adjust_quantity_to_lot_size(symbol, quantity)
-
-            # Get asset-specific precision
-            precision = ASSET_PRECISION.get(symbol, 0)
-
-            # Format with exact decimal places to avoid floating-point errors
-            quantity_str = f"{quantity:.{precision}f}"
-            quantity = float(quantity_str)
-            logger.debug(f"{symbol}: precision={precision}, lot_size={self.get_lot_size(symbol)}, quantity={quantity}, qty_str={quantity_str}")
+            # Round quantity to lot size and price to tick size (from exchange info)
+            quantity = self.format_quantity(symbol, quantity)
+            logger.debug(
+                f"{symbol}: lot_size={self.get_lot_size(symbol)}, tick_size={self.get_tick_size(symbol)}, quantity={quantity}"
+            )
 
             params = {
                 "symbol": symbol,
@@ -145,6 +167,7 @@ class BinanceBroker:
             }
 
             if order_type == "LIMIT" and price:
+                price = self.format_price(symbol, price)
                 params["price"] = price
                 params["timeInForce"] = "GTC"
 
@@ -163,11 +186,7 @@ class BinanceBroker:
 
     def close_position(self, symbol: str, quantity: float, side: str = "SELL") -> dict:
         """Close position"""
-        from config import ASSET_PRECISION
-
-        quantity = self._adjust_quantity_to_lot_size(symbol, quantity)
-        precision = ASSET_PRECISION.get(symbol, 0)
-        quantity = float(f"{quantity:.{precision}f}")
+        quantity = self.format_quantity(symbol, quantity)
 
         params = {
             "symbol": symbol,
@@ -194,11 +213,7 @@ class BinanceBroker:
         take_profit: float = None,
     ) -> dict:
         """Place Stop Loss and Take Profit as Limit Orders"""
-        from config import ASSET_PRECISION
-
-        quantity = self._adjust_quantity_to_lot_size(symbol, quantity)
-        precision = ASSET_PRECISION.get(symbol, 0)
-        quantity = float(f"{quantity:.{precision}f}")
+        quantity = self.format_quantity(symbol, quantity)
         results = {"sl_order": None, "tp_order": None}
 
         try:
@@ -208,12 +223,8 @@ class BinanceBroker:
 
             # Place Stop Loss Limit Order
             if stop_loss:
-                # Round price: whole numbers for high-value pairs (BTCUSDT, ETHUSDT)
-                # 2 decimals for others
-                if symbol in ["BTCUSDT", "ETHUSDT"]:
-                    sl_price = round(stop_loss, 0)  # Round to nearest integer
-                else:
-                    sl_price = round(stop_loss, 2)  # Round to 2 decimals
+                # Round price to the symbol's tick size (from exchange info)
+                sl_price = self.format_price(symbol, stop_loss)
 
                 sl_params = {
                     "symbol": symbol,
@@ -235,12 +246,8 @@ class BinanceBroker:
 
             # Place Take Profit Limit Order
             if take_profit:
-                # Round price: whole numbers for high-value pairs (BTCUSDT, ETHUSDT)
-                # 2 decimals for others
-                if symbol in ["BTCUSDT", "ETHUSDT"]:
-                    tp_price = round(take_profit, 0)  # Round to nearest integer
-                else:
-                    tp_price = round(take_profit, 2)  # Round to 2 decimals
+                # Round price to the symbol's tick size (from exchange info)
+                tp_price = self.format_price(symbol, take_profit)
 
                 tp_params = {
                     "symbol": symbol,
