@@ -228,7 +228,15 @@ class TradingBot:
                 logger.error(f"❌ Entry order failed for {symbol}, no orderId - ABORT SL/TP placement")
                 return
 
-            logger.info(f"Entry order successful, placing SL/TP orders...")
+            order_id = order.get("orderId")
+            logger.info(f"⏳ Waiting for entry order {order_id} to be FILLED...")
+
+            # Wait for order to be FILLED before placing SL/TP
+            if not self.broker.wait_for_order_fill(symbol, order_id, timeout=30):
+                logger.error(f"❌ Entry order {order_id} not filled - ABORT SL/TP placement")
+                return
+
+            logger.info(f"✅ Entry order FILLED, placing SL/TP orders...")
             # Place SL/TP as Limit Orders (separate orders for reliability)
             sl_tp_orders = self.broker.place_sl_tp_orders(
                 symbol, qty, side, stop_loss=sl, take_profit=tp

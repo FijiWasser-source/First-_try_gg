@@ -299,6 +299,35 @@ class BinanceBroker:
             logger.error(f"No klines for {symbol}")
             return []
 
+    def get_order_status(self, symbol: str, order_id: int) -> dict:
+        """Get order status from Binance"""
+        params = {
+            "symbol": symbol,
+            "orderId": order_id,
+        }
+        response = self._request("GET", "/fapi/v1/openOrder", params, private=True)
+        return response if response else {}
+
+    def wait_for_order_fill(self, symbol: str, order_id: int, timeout: int = 30) -> bool:
+        """Wait for order to be FILLED with timeout"""
+        import time
+        start = time.time()
+        while time.time() - start < timeout:
+            order = self.get_order_status(symbol, order_id)
+            if not order:
+                logger.warning(f"Order {order_id} not found (may be already filled)")
+                return True
+            status = order.get("status", "")
+            if status == "FILLED":
+                logger.info(f"✅ Order {order_id} FILLED")
+                return True
+            elif status == "CANCELED":
+                logger.error(f"❌ Order {order_id} CANCELED")
+                return False
+            time.sleep(1)
+        logger.error(f"❌ Order {order_id} timeout - still {status}")
+        return False
+
     def get_positions(self) -> list:
         """Get open positions"""
         response = self._request("GET", "/fapi/v2/positionRisk", private=True)
