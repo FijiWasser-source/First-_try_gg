@@ -49,7 +49,7 @@ class BinanceBroker:
             else:
                 response = requests.request(method, url, params=params, timeout=5)
 
-            if response.status_code == 200:
+            if response.status_code in [200, 201]:
                 return response.json()
             else:
                 logger.error(f"API Error: {response.status_code} - {response.text}")
@@ -179,11 +179,12 @@ class BinanceBroker:
                 }
                 logger.debug(f"Placing SL order for {symbol}: qty={quantity}, price={sl_price}, side={close_side}")
                 sl_response = self._request("POST", "/fapi/v1/order", sl_params, private=True)
+                logger.debug(f"SL Response: {sl_response}")
                 if sl_response and "orderId" in sl_response:
                     results["sl_order"] = sl_response
-                    logger.info(f"Stop Loss Order placed for {symbol} at ${sl_price}")
+                    logger.info(f"✅ Stop Loss Order placed for {symbol} at ${sl_price}")
                 else:
-                    logger.error(f"SL Order failed for {symbol}: {sl_response}")
+                    logger.error(f"❌ SL Order failed for {symbol}: {sl_response}")
                 time.sleep(0.5)  # Small delay between orders
 
             # Place Take Profit Limit Order
@@ -200,11 +201,12 @@ class BinanceBroker:
                 }
                 logger.debug(f"Placing TP order for {symbol}: qty={quantity}, price={tp_price}, side={close_side}")
                 tp_response = self._request("POST", "/fapi/v1/order", tp_params, private=True)
+                logger.debug(f"TP Response: {tp_response}")
                 if tp_response and "orderId" in tp_response:
                     results["tp_order"] = tp_response
-                    logger.info(f"Take Profit Order placed for {symbol} at ${tp_price}")
+                    logger.info(f"✅ Take Profit Order placed for {symbol} at ${tp_price}")
                 else:
-                    logger.error(f"TP Order failed for {symbol}: {tp_response}")
+                    logger.error(f"❌ TP Order failed for {symbol}: {tp_response}")
 
             return results
 
