@@ -225,7 +225,8 @@ class TradingBot:
             logger.debug(f"Entry order result: {order}")
 
             if order and "orderId" in order:
-                logger.info(f"Entry order successful, placing SL/TP orders...")
+                logger.info(f"Entry order successful, waiting before SL/TP placement...")
+                time.sleep(1)  # Wait for position to settle before placing SL/TP
                 # Place SL/TP as Limit Orders
                 sl_tp_orders = self.broker.place_sl_tp_orders(
                     symbol, qty, side, stop_loss=sl, take_profit=tp
@@ -250,7 +251,7 @@ class TradingBot:
                 risk = entry_price - sl if side == "BUY" else sl - entry_price
                 NotificationManager.send_trade_alert(
                     side, symbol, entry_price, qty, sl, tp,
-                    f"2% SL | 5% TP | Risk:${risk:.2f}"
+                    f"3% SL | 7.5% TP | Risk:${risk:.2f}"
                 )
 
                 logger.info(f"✅ Entry: {symbol} {side} @ ${entry_price:.2f} | SL:${sl:.2f} TP:${tp:.2f} | Qty:{qty}")
