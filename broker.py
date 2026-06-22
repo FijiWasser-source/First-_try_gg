@@ -170,8 +170,13 @@ class BinanceBroker:
 
             # Place Stop Loss Limit Order
             if stop_loss:
-                # Round price to 2 decimals (safe for all crypto pairs)
-                sl_price = round(stop_loss, 2)
+                # Round price: whole numbers for high-value pairs (BTCUSDT, ETHUSDT)
+                # 2 decimals for others
+                if symbol in ["BTCUSDT", "ETHUSDT"]:
+                    sl_price = round(stop_loss, 0)  # Round to nearest integer
+                else:
+                    sl_price = round(stop_loss, 2)  # Round to 2 decimals
+
                 sl_params = {
                     "symbol": symbol,
                     "side": close_side,
@@ -192,8 +197,13 @@ class BinanceBroker:
 
             # Place Take Profit Limit Order
             if take_profit:
-                # Round price to 2 decimals (safe for all crypto pairs)
-                tp_price = round(take_profit, 2)
+                # Round price: whole numbers for high-value pairs (BTCUSDT, ETHUSDT)
+                # 2 decimals for others
+                if symbol in ["BTCUSDT", "ETHUSDT"]:
+                    tp_price = round(take_profit, 0)  # Round to nearest integer
+                else:
+                    tp_price = round(take_profit, 2)  # Round to 2 decimals
+
                 tp_params = {
                     "symbol": symbol,
                     "side": close_side,

@@ -232,6 +232,13 @@ class TradingBot:
                 )
                 logger.debug(f"SL/TP orders result: {sl_tp_orders}")
 
+                # Get order IDs, default to None if orders failed
+                sl_order_id = None
+                tp_order_id = None
+                if sl_tp_orders:
+                    sl_order_id = sl_tp_orders.get("sl_order", {}).get("orderId") if sl_tp_orders.get("sl_order") else None
+                    tp_order_id = sl_tp_orders.get("tp_order", {}).get("orderId") if sl_tp_orders.get("tp_order") else None
+
                 self.positions[symbol] = {
                     "entry_price": entry_price,
                     "quantity": qty,
@@ -240,8 +247,8 @@ class TradingBot:
                     "side": side,
                     "entry_time": datetime.now(),
                     "entry_order_id": order.get("orderId"),
-                    "sl_order_id": sl_tp_orders.get("sl_order", {}).get("orderId"),
-                    "tp_order_id": sl_tp_orders.get("tp_order", {}).get("orderId"),
+                    "sl_order_id": sl_order_id,
+                    "tp_order_id": tp_order_id,
                 }
 
                 self.risk_manager.on_position_opened()
