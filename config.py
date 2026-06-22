@@ -89,11 +89,11 @@ ASSET_PRECISION = {
     "BTCUSDT": 3,      # Bitcoin
     "ETHUSDT": 2,      # Ethereum
     "BNBUSDT": 2,      # Binance Coin
-    "SOLUSDT": 1,      # Solana
-    "XRPUSDT": 1,      # Ripple
-    "DOGEUSDT": 1,     # Dogecoin
-    "ADAUSDT": 1,      # Cardano
-    "AVAXUSDT": 1,     # Avalanche
-    "LINKUSDT": 1,     # Chainlink
-    "DOTUSDT": 1,      # Polkadot
-}  # Default fallback: 1
+    "SOLUSDT": 0,      # Solana - whole numbers only
+    "XRPUSDT": 0,      # Ripple - whole numbers only
+    "DOGEUSDT": 0,     # Dogecoin - whole numbers only
+    "ADAUSDT": 0,      # Cardano - whole numbers only
+    "AVAXUSDT": 0,     # Avalanche - whole numbers only
+    "LINKUSDT": 0,     # Chainlink - whole numbers only
+    "DOTUSDT": 0,      # Polkadot - whole numbers only
+}  # Default fallback: 0
