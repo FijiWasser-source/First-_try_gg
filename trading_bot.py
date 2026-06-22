@@ -247,11 +247,10 @@ class TradingBot:
 
                 self.risk_manager.on_position_opened()
 
-                # Send notification
-                risk = entry_price - sl if side == "BUY" else sl - entry_price
+                # Send notification with signal reason
                 NotificationManager.send_trade_alert(
                     side, symbol, entry_price, qty, sl, tp,
-                    f"3% SL | 7.5% TP | Risk:${risk:.2f}"
+                    signal.get("reason", "Trade signal triggered")
                 )
 
                 logger.info(f"✅ Entry: {symbol} {side} @ ${entry_price:.2f} | SL:${sl:.2f} TP:${tp:.2f} | Qty:{qty}")
