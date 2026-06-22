@@ -49,9 +49,9 @@ INDICATORS = {
 }
 
 # Risk Management
-ACCOUNT_SIZE = 5000  # USD
-RISK_PER_TRADE_PCT = 1.0  # 1% risk per trade = $50
-MAX_RISK_PER_TRADE = ACCOUNT_SIZE * (RISK_PER_TRADE_PCT / 100)  # $50
+ACCOUNT_SIZE = 100000  # USD
+RISK_PER_TRADE_PCT = 1.0  # 1% risk per trade = $1000
+MAX_RISK_PER_TRADE = ACCOUNT_SIZE * (RISK_PER_TRADE_PCT / 100)  # $1000
 
 RISK_MANAGEMENT = {
     "leverage": 20,              # Binance default leverage (risk adjusted by this)
