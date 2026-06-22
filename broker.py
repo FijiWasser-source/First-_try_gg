@@ -95,7 +95,8 @@ class BinanceBroker:
             if quantity < 0.001:
                 return {}
 
-            quantity = round(quantity, precision)
+            # Format with exact decimal places to avoid floating-point errors
+            quantity = float(f"{quantity:.{precision}f}")
 
             params = {
                 "symbol": symbol,
@@ -126,7 +127,7 @@ class BinanceBroker:
         from config import ASSET_PRECISION
 
         precision = ASSET_PRECISION.get(symbol, 2)
-        quantity = round(quantity, precision)
+        quantity = float(f"{quantity:.{precision}f}")
 
         params = {
             "symbol": symbol,
@@ -156,7 +157,7 @@ class BinanceBroker:
         from config import ASSET_PRECISION
 
         precision = ASSET_PRECISION.get(symbol, 2)
-        quantity = round(quantity, precision)
+        quantity = float(f"{quantity:.{precision}f}")
         results = {"sl_order": None, "tp_order": None}
 
         try:

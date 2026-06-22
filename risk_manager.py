@@ -43,7 +43,7 @@ class RiskManager:
 
     def calculate_position_size(self, entry_price: float, stop_loss: float) -> float:
         """Calculate position size based on 1% risk rule, adjusted for leverage"""
-        from config import MAX_RISK_PER_TRADE
+        from config import MAX_RISK_PER_TRADE, ASSET_PRECISION
 
         # Risk amount per trade
         risk_amount = MAX_RISK_PER_TRADE  # $50
@@ -60,7 +60,10 @@ class RiskManager:
 
         # Position size = Adjusted Risk / Distance per unit
         quantity = adjusted_risk / sl_distance
-        return round(quantity, 4)
+
+        # Round with extra precision to avoid floating-point errors
+        quantity = round(quantity, 6)
+        return quantity
 
     def calculate_stop_loss(self, entry_price: float, side: str = "LONG") -> float:
         """Calculate stop loss price"""
