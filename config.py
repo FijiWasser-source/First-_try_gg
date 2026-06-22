@@ -86,9 +86,9 @@ STRATEGY = {
 
 # Asset Precision (decimals for order quantity)
 ASSET_PRECISION = {
-    "BTCUSDT": 2,      # Bitcoin
-    "ETHUSDT": 2,      # Ethereum
-    "BNBUSDT": 2,      # Binance Coin
+    "BTCUSDT": 0,      # Bitcoin - whole numbers only
+    "ETHUSDT": 0,      # Ethereum - whole numbers only
+    "BNBUSDT": 0,      # Binance Coin - whole numbers only
     "SOLUSDT": 0,      # Solana - whole numbers only
     "XRPUSDT": 0,      # Ripple - whole numbers only
     "DOGEUSDT": 0,     # Dogecoin - whole numbers only
