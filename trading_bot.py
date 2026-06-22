@@ -222,12 +222,15 @@ class TradingBot:
 
             # Place entry order (MARKET)
             order = self.broker.place_order(symbol, side, "MARKET", qty)
+            logger.debug(f"Entry order result: {order}")
 
             if order and "orderId" in order:
+                logger.info(f"Entry order successful, placing SL/TP orders...")
                 # Place SL/TP as Limit Orders
                 sl_tp_orders = self.broker.place_sl_tp_orders(
                     symbol, qty, side, stop_loss=sl, take_profit=tp
                 )
+                logger.debug(f"SL/TP orders result: {sl_tp_orders}")
 
                 self.positions[symbol] = {
                     "entry_price": entry_price,

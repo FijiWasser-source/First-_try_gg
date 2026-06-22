@@ -176,6 +176,7 @@ class BinanceBroker:
                     "price": sl_price,
                     "timeInForce": "GTC"
                 }
+                logger.debug(f"Placing SL order for {symbol}: qty={quantity}, price={sl_price}, side={close_side}")
                 sl_response = self._request("POST", "/fapi/v1/order", sl_params, private=True)
                 if sl_response and "orderId" in sl_response:
                     results["sl_order"] = sl_response
@@ -195,6 +196,7 @@ class BinanceBroker:
                     "price": tp_price,
                     "timeInForce": "GTC"
                 }
+                logger.debug(f"Placing TP order for {symbol}: qty={quantity}, price={tp_price}, side={close_side}")
                 tp_response = self._request("POST", "/fapi/v1/order", tp_params, private=True)
                 if tp_response and "orderId" in tp_response:
                     results["tp_order"] = tp_response
