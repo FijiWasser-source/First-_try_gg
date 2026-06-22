@@ -106,6 +106,7 @@ class BinanceBroker:
                 "side": side,
                 "type": order_type,
                 "quantity": quantity,
+                "positionSide": "LONG" if side == "BUY" else "SHORT",
             }
 
             if order_type == "LIMIT" and price:
