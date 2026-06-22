@@ -213,19 +213,25 @@ class BinanceBroker:
         take_profit: float = None,
     ) -> dict:
         """Place Stop Loss and Take Profit as Limit Orders"""
-        quantity = self.format_quantity(symbol, quantity)
         results = {"sl_order": None, "tp_order": None}
 
+        if not stop_loss and not take_profit:
+            logger.warning(f"No SL or TP provided for {symbol}")
+            return results
+
         try:
-            import time
+            # Format quantity once for both orders
+            quantity = self.format_quantity(symbol, quantity)
+            if quantity <= 0:
+                logger.error(f"Invalid quantity {quantity} for {symbol}")
+                return results
+
             # Determine close side (opposite of entry side)
             close_side = "SELL" if side == "BUY" else "BUY"
 
-            # Place Stop Loss Limit Order
+            # Place Stop Loss
             if stop_loss:
-                # Round price to the symbol's tick size (from exchange info)
                 sl_price = self.format_price(symbol, stop_loss)
-
                 sl_params = {
                     "symbol": symbol,
                     "side": close_side,
@@ -234,21 +240,21 @@ class BinanceBroker:
                     "price": sl_price,
                     "timeInForce": "GTC"
                 }
-                logger.debug(f"Placing SL order for {symbol}: qty={quantity}, price={sl_price}, side={close_side}")
+                logger.info(f"📉 Placing SL: {symbol} {close_side} {quantity} @ {sl_price}")
                 sl_response = self._request("POST", "/fapi/v1/order", sl_params, private=True)
-                logger.debug(f"SL Response: {sl_response}")
+
                 if sl_response and "orderId" in sl_response:
                     results["sl_order"] = sl_response
-                    logger.info(f"✅ Stop Loss Order placed for {symbol} at ${sl_price}")
+                    logger.info(f"✅ SL Order {sl_response['orderId']} placed: {symbol} @ ${sl_price}")
                 else:
-                    logger.error(f"❌ SL Order failed for {symbol}: {sl_response}")
-                time.sleep(0.5)  # Small delay between orders
+                    logger.error(f"❌ SL Order failed: {sl_response}")
 
-            # Place Take Profit Limit Order
+                import time
+                time.sleep(0.3)
+
+            # Place Take Profit
             if take_profit:
-                # Round price to the symbol's tick size (from exchange info)
                 tp_price = self.format_price(symbol, take_profit)
-
                 tp_params = {
                     "symbol": symbol,
                     "side": close_side,
@@ -257,19 +263,19 @@ class BinanceBroker:
                     "price": tp_price,
                     "timeInForce": "GTC"
                 }
-                logger.debug(f"Placing TP order for {symbol}: qty={quantity}, price={tp_price}, side={close_side}")
+                logger.info(f"📈 Placing TP: {symbol} {close_side} {quantity} @ {tp_price}")
                 tp_response = self._request("POST", "/fapi/v1/order", tp_params, private=True)
-                logger.debug(f"TP Response: {tp_response}")
+
                 if tp_response and "orderId" in tp_response:
                     results["tp_order"] = tp_response
-                    logger.info(f"✅ Take Profit Order placed for {symbol} at ${tp_price}")
+                    logger.info(f"✅ TP Order {tp_response['orderId']} placed: {symbol} @ ${tp_price}")
                 else:
-                    logger.error(f"❌ TP Order failed for {symbol}: {tp_response}")
+                    logger.error(f"❌ TP Order failed: {tp_response}")
 
             return results
 
         except Exception as e:
-            logger.error(f"Failed to place SL/TP orders: {e}")
+            logger.error(f"❌ Failed to place SL/TP orders: {e}")
             return results
 
     def get_klines(
