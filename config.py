@@ -28,17 +28,17 @@ INDICATORS = {
 
     # Keltner Channels
     "keltner_basis": 20,  # EMA(20)
-    "keltner_multiplier": 2.0,  # ±2 × ATR
+    "keltner_multiplier": 1.5,  # ±1.5 × ATR
 
     # MFI
     "mfi_period": 14,
-    "mfi_long_threshold": 45,    # Below this = oversold
-    "mfi_short_threshold": 55,   # Above this = overbought
+    "mfi_long_threshold": 40,    # Below this = oversold
+    "mfi_short_threshold": 50,   # Above this = overbought
     "mfi_lookback": 1,           # Last 1 candle
 
     # Fractal
     "fractal_window": 5,         # 5-candle fractal (2L, Mid, 2R)
-    "fractal_lookback": 17,      # Look back 17 candles for confirmed fractals
+    "fractal_lookback": 25,      # Look back 25 candles for confirmed fractals
 
     # ATR
     "atr_period": 14,
@@ -86,13 +86,14 @@ STRATEGY = {
 
 # Asset Precision (decimals for order quantity)
 ASSET_PRECISION = {
-    "BTCUSDT": 4,
-    "ETHUSDT": 3,
-    "UNIUSDT": 2,
-    "AAVAUSDT": 2,
-    "AVAXUSDT": 2,
-    "DOGEUSDT": 2,
-    "XRPUSDT": 2,
-    "1INCHUSDT": 2,
-    "HBARUSDT": 2,
+    "BTCUSDT": 4,      # Bitcoin
+    "ETHUSDT": 3,      # Ethereum
+    "BNBUSDT": 2,      # Binance Coin
+    "SOLUSDT": 2,      # Solana
+    "XRPUSDT": 2,      # Ripple
+    "DOGEUSDT": 2,     # Dogecoin
+    "ADAUSDT": 2,      # Cardano
+    "AVAXUSDT": 2,     # Avalanche
+    "LINKUSDT": 2,     # Chainlink
+    "DOTUSDT": 2,      # Polkadot
 }  # Default fallback: 2
