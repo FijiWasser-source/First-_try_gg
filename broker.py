@@ -22,7 +22,33 @@ class BinanceBroker:
         )
         self.api_key = BINANCE_API_KEY
         self.api_secret = BINANCE_API_SECRET
+        self.lot_size_cache = {}
         logger.info(f"Connected to Binance Futures ({'testnet' if self.testnet else 'live'})")
+        self.load_exchange_info()
+
+    def load_exchange_info(self):
+        """Load exchange info with lot size for all trading pairs"""
+        try:
+            response = self._request("GET", "/fapi/v1/exchangeInfo")
+            if response and "symbols" in response:
+                for symbol_info in response["symbols"]:
+                    symbol = symbol_info.get("symbol")
+                    if symbol:
+                        lot_size = 1.0
+                        for filter_item in symbol_info.get("filters", []):
+                            if filter_item.get("filterType") == "LOT_SIZE":
+                                lot_size = float(filter_item.get("stepSize", 1.0))
+                                break
+                        self.lot_size_cache[symbol] = lot_size
+                logger.info(f"Loaded lot size for {len(self.lot_size_cache)} symbols")
+            else:
+                logger.warning("Failed to load exchange info")
+        except Exception as e:
+            logger.error(f"Error loading exchange info: {e}")
+
+    def get_lot_size(self, symbol: str) -> float:
+        """Get lot size (step size) for a symbol"""
+        return self.lot_size_cache.get(symbol, 1.0)
 
     def _sign_request(self, params: dict) -> str:
         """Sign request for authentication"""
@@ -76,6 +102,14 @@ class BinanceBroker:
             return float(response["price"])
         return 0.0
 
+    def _adjust_quantity_to_lot_size(self, symbol: str, quantity: float) -> float:
+        """Adjust quantity to match Binance lot size requirements"""
+        lot_size = self.get_lot_size(symbol)
+        if lot_size <= 0:
+            return quantity
+        adjusted = (int(quantity / lot_size)) * lot_size
+        return max(adjusted, lot_size)
+
     def place_order(
         self,
         symbol: str,
@@ -84,22 +118,24 @@ class BinanceBroker:
         quantity: float,
         price: float = None,
     ) -> dict:
-        """Place order with proper precision"""
+        """Place order with proper precision and lot size"""
         try:
             from config import ASSET_PRECISION
 
-            # Get asset-specific precision
-            precision = ASSET_PRECISION.get(symbol, 1)  # Default to 1 decimal
-
-            # Round quantity to proper precision (Binance requirements)
             if quantity < 0.001:
                 logger.debug(f"Quantity {quantity} too small for {symbol}")
                 return {}
 
+            # Adjust quantity to lot size first
+            quantity = self._adjust_quantity_to_lot_size(symbol, quantity)
+
+            # Get asset-specific precision
+            precision = ASSET_PRECISION.get(symbol, 0)
+
             # Format with exact decimal places to avoid floating-point errors
             quantity_str = f"{quantity:.{precision}f}"
             quantity = float(quantity_str)
-            logger.debug(f"{symbol}: precision={precision}, quantity={quantity}, qty_str={quantity_str}")
+            logger.debug(f"{symbol}: precision={precision}, lot_size={self.get_lot_size(symbol)}, quantity={quantity}, qty_str={quantity_str}")
 
             params = {
                 "symbol": symbol,
@@ -129,7 +165,8 @@ class BinanceBroker:
         """Close position"""
         from config import ASSET_PRECISION
 
-        precision = ASSET_PRECISION.get(symbol, 2)
+        quantity = self._adjust_quantity_to_lot_size(symbol, quantity)
+        precision = ASSET_PRECISION.get(symbol, 0)
         quantity = float(f"{quantity:.{precision}f}")
 
         params = {
@@ -159,7 +196,8 @@ class BinanceBroker:
         """Place Stop Loss and Take Profit as Limit Orders"""
         from config import ASSET_PRECISION
 
-        precision = ASSET_PRECISION.get(symbol, 2)
+        quantity = self._adjust_quantity_to_lot_size(symbol, quantity)
+        precision = ASSET_PRECISION.get(symbol, 0)
         quantity = float(f"{quantity:.{precision}f}")
         results = {"sl_order": None, "tp_order": None}
 
