@@ -161,6 +161,7 @@ class BinanceBroker:
         results = {"sl_order": None, "tp_order": None}
 
         try:
+            import time
             # Determine close side (opposite of entry side)
             close_side = "SELL" if side == "BUY" else "BUY"
 
@@ -183,6 +184,7 @@ class BinanceBroker:
                     logger.info(f"Stop Loss Order placed for {symbol} at ${sl_price}")
                 else:
                     logger.error(f"SL Order failed for {symbol}: {sl_response}")
+                time.sleep(0.5)  # Small delay between orders
 
             # Place Take Profit Limit Order
             if take_profit:
