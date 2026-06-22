@@ -86,14 +86,14 @@ STRATEGY = {
 
 # Asset Precision (decimals for order quantity)
 ASSET_PRECISION = {
-    "BTCUSDT": 4,      # Bitcoin
-    "ETHUSDT": 3,      # Ethereum
+    "BTCUSDT": 3,      # Bitcoin
+    "ETHUSDT": 2,      # Ethereum
     "BNBUSDT": 2,      # Binance Coin
-    "SOLUSDT": 2,      # Solana
-    "XRPUSDT": 2,      # Ripple
-    "DOGEUSDT": 2,     # Dogecoin
-    "ADAUSDT": 2,      # Cardano
-    "AVAXUSDT": 2,     # Avalanche
-    "LINKUSDT": 2,     # Chainlink
-    "DOTUSDT": 2,      # Polkadot
-}  # Default fallback: 2
+    "SOLUSDT": 1,      # Solana
+    "XRPUSDT": 1,      # Ripple
+    "DOGEUSDT": 1,     # Dogecoin
+    "ADAUSDT": 1,      # Cardano
+    "AVAXUSDT": 1,     # Avalanche
+    "LINKUSDT": 1,     # Chainlink
+    "DOTUSDT": 1,      # Polkadot
+}  # Default fallback: 1
