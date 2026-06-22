@@ -18,7 +18,7 @@ logger.info(f"BINANCE_API_SECRET loaded: {bool(BINANCE_API_SECRET)}")
 
 # Trading Pairs - Top 10 Cryptocurrencies
 TRADING_PAIRS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "AVAXUSDT", "LINKUSDT", "DOTUSDT"]
-TIMEFRAME = "15m"  # 15 minute candles
+TIMEFRAME = "1m"  # 1 minute candles
 
 # Technical Indicators - New Setup
 INDICATORS = {
