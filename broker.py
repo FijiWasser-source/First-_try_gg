@@ -155,8 +155,8 @@ class BinanceBroker:
 
             # Round quantity to lot size and price to tick size (from exchange info)
             quantity = self.format_quantity(symbol, quantity)
-            logger.debug(
-                f"{symbol}: lot_size={self.get_lot_size(symbol)}, tick_size={self.get_tick_size(symbol)}, quantity={quantity}"
+            logger.info(
+                f"📊 {symbol} {side} {order_type} order: qty={quantity}, lot_size={self.get_lot_size(symbol)}"
             )
 
             params = {
