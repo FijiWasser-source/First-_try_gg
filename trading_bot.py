@@ -205,13 +205,13 @@ class TradingBot:
             entry_price = signal["price"]
             side = "BUY" if signal["signal"] == "BUY" else "SELL"
 
-            # Calculate SL/TP based on percentage (2% SL, 5% TP)
+            # Calculate SL/TP based on percentage (3% SL, 7.5% TP)
             if side == "BUY":
-                sl = entry_price * 0.98  # 2% below entry
-                tp = entry_price * 1.05  # 5% above entry
+                sl = entry_price * 0.97  # 3% below entry
+                tp = entry_price * 1.075  # 7.5% above entry
             else:  # SELL
-                sl = entry_price * 1.02  # 2% above entry
-                tp = entry_price * 0.95  # 5% below entry
+                sl = entry_price * 1.03  # 3% above entry
+                tp = entry_price * 0.925  # 7.5% below entry
 
             # Calculate position size based on risk
             qty = self.risk_manager.calculate_position_size(entry_price, sl)
