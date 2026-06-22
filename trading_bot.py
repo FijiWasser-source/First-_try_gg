@@ -225,7 +225,7 @@ class TradingBot:
             logger.debug(f"Entry order result: {order}")
 
             if not order or "orderId" not in order:
-                logger.error(f"Entry order failed for {symbol}, skipping SL/TP placement")
+                logger.error(f"❌ Entry order failed for {symbol}, no orderId - ABORT SL/TP placement")
                 return
 
             logger.info(f"Entry order successful, placing SL/TP orders...")
