@@ -16,8 +16,8 @@ logger = logging.getLogger(__name__)
 logger.info(f"BINANCE_API_KEY loaded: {bool(BINANCE_API_KEY)}")
 logger.info(f"BINANCE_API_SECRET loaded: {bool(BINANCE_API_SECRET)}")
 
-# Trading Pairs
-TRADING_PAIRS = ["HBARUSDT", "1INCHUSDT", "AAVEUSDT", "AVAXUSDT", "UNIUSDT", "DOGEUSDT", "XRPUSDT"]
+# Trading Pairs - Top 10 Cryptocurrencies
+TRADING_PAIRS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "AVAXUSDT", "LINKUSDT", "DOTUSDT"]
 TIMEFRAME = "15m"  # 15 minute candles
 
 # Technical Indicators - New Setup
