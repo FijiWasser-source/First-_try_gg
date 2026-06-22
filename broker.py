@@ -165,7 +165,8 @@ class BinanceBroker:
 
             # Place Stop Loss Limit Order
             if stop_loss:
-                sl_price = round(stop_loss, 4)
+                # Round price to 2 decimals (works for most crypto pairs)
+                sl_price = round(stop_loss, 2)
                 sl_params = {
                     "symbol": symbol,
                     "side": close_side,
@@ -183,7 +184,8 @@ class BinanceBroker:
 
             # Place Take Profit Limit Order
             if take_profit:
-                tp_price = round(take_profit, 4)
+                # Round price to 2 decimals (works for most crypto pairs)
+                tp_price = round(take_profit, 2)
                 tp_params = {
                     "symbol": symbol,
                     "side": close_side,
