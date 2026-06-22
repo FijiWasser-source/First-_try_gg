@@ -135,7 +135,7 @@ class TradingBot:
         return True
 
     def generate_signals(self, symbol: str) -> dict:
-        """Generate trading signals - ALL 4 conditions must be met"""
+        """Generate trading signals - 3 conditions must be met"""
         ohlcv = self.fetch_price_data(symbol)
 
         if not ohlcv or len(ohlcv["close"]) < 50:
@@ -151,13 +151,11 @@ class TradingBot:
         ema50 = indicators["ema50"][-1]
         kc_mid = indicators["kc_mid"][-1]
         mfi = indicators["mfi"]
-        fractal_lows = indicators["fractal_lows"]
-        fractal_highs = indicators["fractal_highs"]
         atr = indicators["atr"][-1]
 
         signal = {"signal": "HOLD", "reason": "", "price": current_close, "atr": atr}
 
-        # LONG SIGNAL - ALL 4 conditions must be met
+        # LONG SIGNAL - 3 conditions must be met
         if symbol not in self.positions:
             # Condition 1: EMA(20) > EMA(50)
             ema_bullish = ema20 > ema50
@@ -166,21 +164,15 @@ class TradingBot:
             low_touches_kc = current_low <= kc_mid
             close_above_ema50 = current_close > ema50
 
-            # Condition 3: MFI cross above 45
+            # Condition 3: MFI cross above 40
             mfi_cross = self.check_mfi_cross_long(mfi, INDICATORS["mfi_lookback"])
 
-            # Condition 4: Confirmed fractal low in last 10 candles, below current price
-            fractal_low = self.find_confirmed_fractal_low(
-                fractal_lows, current_close, INDICATORS["fractal_lookback"]
-            )
-
-            if ema_bullish and low_touches_kc and close_above_ema50 and mfi_cross and fractal_low:
+            if ema_bullish and low_touches_kc and close_above_ema50 and mfi_cross:
                 signal["signal"] = "BUY"
-                signal["fractal"] = fractal_low
-                signal["reason"] = f"LONG: EMA bullish, Low touches KC, MFI cross, Fractal {fractal_low:.2f}"
+                signal["reason"] = f"LONG: EMA bullish, Low touches KC, MFI cross @ {current_close:.4f}"
                 logger.info(f"{symbol} BUY Signal: {signal['reason']}")
 
-        # SHORT SIGNAL - ALL 4 conditions must be met (mirrored)
+        # SHORT SIGNAL - 3 conditions must be met (mirrored)
         if symbol not in self.positions:
             # Condition 1: EMA(20) < EMA(50)
             ema_bearish = ema20 < ema50
@@ -189,18 +181,12 @@ class TradingBot:
             high_touches_kc = current_high >= kc_mid
             close_below_ema50 = current_close < ema50
 
-            # Condition 3: MFI cross below 55
+            # Condition 3: MFI cross below 50
             mfi_cross = self.check_mfi_cross_short(mfi, INDICATORS["mfi_lookback"])
 
-            # Condition 4: Confirmed fractal high in last 10 candles, above current price
-            fractal_high = self.find_confirmed_fractal_high(
-                fractal_highs, current_close, INDICATORS["fractal_lookback"]
-            )
-
-            if ema_bearish and high_touches_kc and close_below_ema50 and mfi_cross and fractal_high:
+            if ema_bearish and high_touches_kc and close_below_ema50 and mfi_cross:
                 signal["signal"] = "SELL"
-                signal["fractal"] = fractal_high
-                signal["reason"] = f"SHORT: EMA bearish, High touches KC, MFI cross, Fractal {fractal_high:.2f}"
+                signal["reason"] = f"SHORT: EMA bearish, High touches KC, MFI cross @ {current_close:.4f}"
                 logger.info(f"{symbol} SELL Signal: {signal['reason']}")
 
         return signal
