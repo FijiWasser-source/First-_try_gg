@@ -224,41 +224,43 @@ class TradingBot:
             order = self.broker.place_order(symbol, side, "MARKET", qty)
             logger.debug(f"Entry order result: {order}")
 
-            if order and "orderId" in order:
-                logger.info(f"Entry order successful, placing SL/TP orders...")
-                # Place SL/TP as Limit Orders (separate orders for reliability)
-                sl_tp_orders = self.broker.place_sl_tp_orders(
-                    symbol, qty, side, stop_loss=sl, take_profit=tp
-                )
-                logger.debug(f"SL/TP orders result: {sl_tp_orders}")
+            if not order or "orderId" not in order:
+                logger.error(f"Entry order failed for {symbol}, skipping SL/TP placement")
+                return
 
-                # Safely get order IDs
-                sl_order = sl_tp_orders.get("sl_order") if sl_tp_orders else None
-                tp_order = sl_tp_orders.get("tp_order") if sl_tp_orders else None
-                sl_order_id = sl_order.get("orderId") if sl_order and isinstance(sl_order, dict) else None
-                tp_order_id = tp_order.get("orderId") if tp_order and isinstance(tp_order, dict) else None
+            logger.info(f"Entry order successful, placing SL/TP orders...")
+            # Place SL/TP as Limit Orders (separate orders for reliability)
+            sl_tp_orders = self.broker.place_sl_tp_orders(
+                symbol, qty, side, stop_loss=sl, take_profit=tp
+            )
 
-                self.positions[symbol] = {
-                    "entry_price": entry_price,
-                    "quantity": qty,
-                    "stop_loss": sl,
-                    "take_profit": tp,
-                    "side": side,
-                    "entry_time": datetime.now(),
-                    "entry_order_id": order.get("orderId"),
-                    "sl_order_id": sl_order_id,
-                    "tp_order_id": tp_order_id,
-                }
+            # Safely get order IDs
+            sl_order = sl_tp_orders.get("sl_order") if sl_tp_orders else None
+            tp_order = sl_tp_orders.get("tp_order") if sl_tp_orders else None
+            sl_order_id = sl_order.get("orderId") if sl_order and isinstance(sl_order, dict) else None
+            tp_order_id = tp_order.get("orderId") if tp_order and isinstance(tp_order, dict) else None
 
-                self.risk_manager.on_position_opened()
+            self.positions[symbol] = {
+                "entry_price": entry_price,
+                "quantity": qty,
+                "stop_loss": sl,
+                "take_profit": tp,
+                "side": side,
+                "entry_time": datetime.now(),
+                "entry_order_id": order.get("orderId"),
+                "sl_order_id": sl_order_id,
+                "tp_order_id": tp_order_id,
+            }
 
-                # Send notification with signal reason
-                NotificationManager.send_trade_alert(
-                    side, symbol, entry_price, qty, sl, tp,
-                    signal.get("reason", "Trade signal triggered")
-                )
+            self.risk_manager.on_position_opened()
 
-                logger.info(f"✅ Entry: {symbol} {side} @ ${entry_price:.2f} | SL:${sl:.2f} TP:${tp:.2f} | Qty:{qty}")
+            # Send notification with signal reason
+            NotificationManager.send_trade_alert(
+                side, symbol, entry_price, qty, sl, tp,
+                signal.get("reason", "Trade signal triggered")
+            )
+
+            logger.info(f"✅ Entry: {symbol} {side} @ ${entry_price:.2f} | SL:${sl:.2f} TP:${tp:.2f} | Qty:{qty}")
 
         except Exception as e:
             logger.error(f"Entry execution failed: {e}")
