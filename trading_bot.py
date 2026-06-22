@@ -206,7 +206,7 @@ class TradingBot:
         return signal
 
     def execute_entry(self, symbol: str, signal: dict):
-        """Execute trade entry with Fractal-based SL/TP"""
+        """Execute trade entry with Limit Order SL/TP"""
         if not self.risk_manager.can_open_position():
             logger.warning(f"Cannot open position for {symbol}")
             return
@@ -217,36 +217,32 @@ class TradingBot:
 
         try:
             entry_price = signal["price"]
-            fractal = signal.get("fractal")
-            atr = signal.get("atr", 500)
-
-            if not fractal:
-                logger.warning(f"No fractal for {symbol}")
-                return
-
             side = "BUY" if signal["signal"] == "BUY" else "SELL"
 
-            # Calculate SL based on Fractal + ATR buffer
+            # Calculate SL/TP based on percentage (2% SL, 5% TP)
             if side == "BUY":
-                sl = fractal - (INDICATORS["atr_sl_puffer"] * atr)
-                risk = entry_price - sl
-                tp = entry_price + (INDICATORS["risk_reward_ratio"] * risk)
+                sl = entry_price * 0.98  # 2% below entry
+                tp = entry_price * 1.05  # 5% above entry
             else:  # SELL
-                sl = fractal + (INDICATORS["atr_sl_puffer"] * atr)
-                risk = sl - entry_price
-                tp = entry_price - (INDICATORS["risk_reward_ratio"] * risk)
+                sl = entry_price * 1.02  # 2% above entry
+                tp = entry_price * 0.95  # 5% below entry
 
-            # Calculate position size
+            # Calculate position size based on risk
             qty = self.risk_manager.calculate_position_size(entry_price, sl)
 
             if qty == 0:
                 logger.warning(f"Invalid position size for {symbol}")
                 return
 
-            # Place order
+            # Place entry order (MARKET)
             order = self.broker.place_order(symbol, side, "MARKET", qty)
 
             if order and "orderId" in order:
+                # Place SL/TP as Limit Orders
+                sl_tp_orders = self.broker.place_sl_tp_orders(
+                    symbol, qty, side, stop_loss=sl, take_profit=tp
+                )
+
                 self.positions[symbol] = {
                     "entry_price": entry_price,
                     "quantity": qty,
@@ -254,22 +250,21 @@ class TradingBot:
                     "take_profit": tp,
                     "side": side,
                     "entry_time": datetime.now(),
-                    "fractal": fractal,
-                    "risk": risk,
+                    "entry_order_id": order.get("orderId"),
+                    "sl_order_id": sl_tp_orders.get("sl_order", {}).get("orderId"),
+                    "tp_order_id": sl_tp_orders.get("tp_order", {}).get("orderId"),
                 }
 
                 self.risk_manager.on_position_opened()
 
-                # Set SL/TP
-                self.broker.set_stop_loss_take_profit(symbol, sl, tp)
-
                 # Send notification
+                risk = entry_price - sl if side == "BUY" else sl - entry_price
                 NotificationManager.send_trade_alert(
                     side, symbol, entry_price, qty, sl, tp,
-                    f"Fractal:{fractal:.2f} R/R:1:{INDICATORS['risk_reward_ratio']}"
+                    f"2% SL | 5% TP | Risk:${risk:.2f}"
                 )
 
-                logger.info(f"✅ Entry: {symbol} {side} @ ${entry_price:.2f} | SL:{sl:.2f} TP:{tp:.2f}")
+                logger.info(f"✅ Entry: {symbol} {side} @ ${entry_price:.2f} | SL:${sl:.2f} TP:${tp:.2f} | Qty:{qty}")
 
         except Exception as e:
             logger.error(f"Entry execution failed: {e}")

@@ -144,22 +144,66 @@ class BinanceBroker:
             logger.error(f"Close failed: {response}")
             return {}
 
-    def set_stop_loss_take_profit(
+    def place_sl_tp_orders(
         self,
         symbol: str,
+        quantity: float,
+        side: str,
         stop_loss: float = None,
         take_profit: float = None,
-    ) -> bool:
-        """Set SL/TP (simplified)"""
+    ) -> dict:
+        """Place Stop Loss and Take Profit as Limit Orders"""
+        from config import ASSET_PRECISION
+
+        precision = ASSET_PRECISION.get(symbol, 2)
+        quantity = round(quantity, precision)
+        results = {"sl_order": None, "tp_order": None}
+
         try:
+            # Determine close side (opposite of entry side)
+            close_side = "SELL" if side == "BUY" else "BUY"
+
+            # Place Stop Loss Limit Order
             if stop_loss:
-                logger.info(f"Stop Loss set for {symbol} at {stop_loss}")
+                sl_price = round(stop_loss, 4)
+                sl_params = {
+                    "symbol": symbol,
+                    "side": close_side,
+                    "type": "LIMIT",
+                    "quantity": quantity,
+                    "price": sl_price,
+                    "timeInForce": "GTC"
+                }
+                sl_response = self._request("POST", "/fapi/v1/order", sl_params, private=True)
+                if sl_response and "orderId" in sl_response:
+                    results["sl_order"] = sl_response
+                    logger.info(f"Stop Loss Order placed for {symbol} at ${sl_price}")
+                else:
+                    logger.error(f"SL Order failed for {symbol}: {sl_response}")
+
+            # Place Take Profit Limit Order
             if take_profit:
-                logger.info(f"Take Profit set for {symbol} at {take_profit}")
-            return True
+                tp_price = round(take_profit, 4)
+                tp_params = {
+                    "symbol": symbol,
+                    "side": close_side,
+                    "type": "LIMIT",
+                    "quantity": quantity,
+                    "price": tp_price,
+                    "timeInForce": "GTC"
+                }
+                tp_response = self._request("POST", "/fapi/v1/order", tp_params, private=True)
+                if tp_response and "orderId" in tp_response:
+                    results["tp_order"] = tp_response
+                    logger.info(f"Take Profit Order placed for {symbol} at ${tp_price}")
+                else:
+                    logger.error(f"TP Order failed for {symbol}: {tp_response}")
+
+            return results
+
         except Exception as e:
-            logger.error(f"Failed to set SL/TP: {e}")
-            return False
+            logger.error(f"Failed to place SL/TP orders: {e}")
+            return results
 
     def get_klines(
         self,
