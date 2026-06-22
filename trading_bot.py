@@ -220,15 +220,17 @@ class TradingBot:
                 logger.warning(f"Invalid position size for {symbol}")
                 return
 
-            # Place entry order with integrated SL/TP
-            order = self.broker.place_order(
-                symbol, side, "MARKET", qty,
-                stop_loss=sl, take_profit=tp
-            )
+            # Place entry order (MARKET)
+            order = self.broker.place_order(symbol, side, "MARKET", qty)
             logger.debug(f"Entry order result: {order}")
 
             if order and "orderId" in order:
-                logger.info(f"Entry order successful with SL/TP set in position")
+                logger.info(f"Entry order successful, placing SL/TP orders...")
+                # Place SL/TP as Limit Orders (separate orders for reliability)
+                sl_tp_orders = self.broker.place_sl_tp_orders(
+                    symbol, qty, side, stop_loss=sl, take_profit=tp
+                )
+                logger.debug(f"SL/TP orders result: {sl_tp_orders}")
 
                 self.positions[symbol] = {
                     "entry_price": entry_price,
@@ -238,8 +240,8 @@ class TradingBot:
                     "side": side,
                     "entry_time": datetime.now(),
                     "entry_order_id": order.get("orderId"),
-                    "sl_order_id": None,
-                    "tp_order_id": None,
+                    "sl_order_id": sl_tp_orders.get("sl_order", {}).get("orderId"),
+                    "tp_order_id": sl_tp_orders.get("tp_order", {}).get("orderId"),
                 }
 
                 self.risk_manager.on_position_opened()
