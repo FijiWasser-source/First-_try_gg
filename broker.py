@@ -165,19 +165,19 @@ class BinanceBroker:
             # Determine close side (opposite of entry side)
             close_side = "SELL" if side == "BUY" else "BUY"
 
-            # Place Stop Loss Limit Order
+            # Place Stop Loss Order
             if stop_loss:
                 # Round price to 2 decimals (safe for all crypto pairs)
                 sl_price = round(stop_loss, 2)
                 sl_params = {
                     "symbol": symbol,
                     "side": close_side,
-                    "type": "LIMIT",
+                    "type": "STOP_MARKET",
                     "quantity": quantity,
-                    "price": sl_price,
+                    "stopPrice": sl_price,
                     "timeInForce": "GTC"
                 }
-                logger.debug(f"Placing SL order for {symbol}: qty={quantity}, price={sl_price}, side={close_side}")
+                logger.debug(f"Placing SL order for {symbol}: qty={quantity}, stopPrice={sl_price}, side={close_side}")
                 sl_response = self._request("POST", "/fapi/v1/order", sl_params, private=True)
                 logger.debug(f"SL Response: {sl_response}")
                 if sl_response and "orderId" in sl_response:
@@ -187,19 +187,19 @@ class BinanceBroker:
                     logger.error(f"❌ SL Order failed for {symbol}: {sl_response}")
                 time.sleep(0.5)  # Small delay between orders
 
-            # Place Take Profit Limit Order
+            # Place Take Profit Order
             if take_profit:
                 # Round price to 2 decimals (safe for all crypto pairs)
                 tp_price = round(take_profit, 2)
                 tp_params = {
                     "symbol": symbol,
                     "side": close_side,
-                    "type": "LIMIT",
+                    "type": "TAKE_PROFIT_MARKET",
                     "quantity": quantity,
-                    "price": tp_price,
+                    "stopPrice": tp_price,
                     "timeInForce": "GTC"
                 }
-                logger.debug(f"Placing TP order for {symbol}: qty={quantity}, price={tp_price}, side={close_side}")
+                logger.debug(f"Placing TP order for {symbol}: qty={quantity}, stopPrice={tp_price}, side={close_side}")
                 tp_response = self._request("POST", "/fapi/v1/order", tp_params, private=True)
                 logger.debug(f"TP Response: {tp_response}")
                 if tp_response and "orderId" in tp_response:
