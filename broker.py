@@ -167,7 +167,6 @@ class BinanceBroker:
             }
 
             if order_type == "LIMIT" and price:
-                price = self.format_price(symbol, price)
                 params["price"] = price
                 params["timeInForce"] = "GTC"
 
@@ -231,7 +230,7 @@ class BinanceBroker:
 
             # Place Stop Loss
             if stop_loss:
-                sl_price = self.format_price(symbol, stop_loss)
+                sl_price = stop_loss
                 sl_params = {
                     "symbol": symbol,
                     "side": close_side,
@@ -254,7 +253,7 @@ class BinanceBroker:
 
             # Place Take Profit
             if take_profit:
-                tp_price = self.format_price(symbol, take_profit)
+                tp_price = take_profit
                 tp_params = {
                     "symbol": symbol,
                     "side": close_side,
