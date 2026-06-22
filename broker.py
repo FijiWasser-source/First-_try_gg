@@ -93,10 +93,13 @@ class BinanceBroker:
 
             # Round quantity to proper precision (Binance requirements)
             if quantity < 0.001:
+                logger.debug(f"Quantity {quantity} too small for {symbol}")
                 return {}
 
             # Format with exact decimal places to avoid floating-point errors
-            quantity = float(f"{quantity:.{precision}f}")
+            quantity_str = f"{quantity:.{precision}f}"
+            quantity = float(quantity_str)
+            logger.debug(f"{symbol}: precision={precision}, quantity={quantity}, qty_str={quantity_str}")
 
             params = {
                 "symbol": symbol,
