@@ -83,8 +83,10 @@ class BinanceBroker:
         order_type: str,
         quantity: float,
         price: float = None,
+        stop_loss: float = None,
+        take_profit: float = None,
     ) -> dict:
-        """Place order with proper precision"""
+        """Place order with proper precision and optional SL/TP"""
         try:
             from config import ASSET_PRECISION
 
@@ -109,10 +111,35 @@ class BinanceBroker:
                 params["price"] = price
                 params["timeInForce"] = "GTC"
 
+            # Add Stop Loss if provided
+            if stop_loss:
+                sl_price = round(stop_loss, 2)
+                params["stopLoss"] = {
+                    "type": "MARKET",
+                    "triggerBy": "MARK_PRICE"
+                }
+                # For MARKET orders, we need the stopPrice in the main params
+                if order_type == "MARKET":
+                    params["stopPrice"] = sl_price
+
+            # Add Take Profit if provided
+            if take_profit:
+                tp_price = round(take_profit, 2)
+                params["takeProfit"] = {
+                    "type": "MARKET",
+                    "triggerBy": "MARK_PRICE"
+                }
+                if order_type == "MARKET":
+                    params["takeProfitPrice"] = tp_price
+
             response = self._request("POST", "/fapi/v1/order", params, private=True)
 
             if response and "orderId" in response:
                 logger.info(f"Order placed: {symbol} {side} {quantity}")
+                if stop_loss:
+                    logger.info(f"  SL: ${sl_price}")
+                if take_profit:
+                    logger.info(f"  TP: ${tp_price}")
                 return response
             else:
                 logger.error(f"Order failed: {response}")
