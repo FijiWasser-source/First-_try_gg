@@ -220,9 +220,8 @@ class TradingBot:
                 logger.warning(f"Invalid position size for {symbol}")
                 return
 
-            # Place entry order (LIMIT with 1% buffer for guaranteed execution on Testnet)
-            entry_limit_price = entry_price * 1.01 if side == "BUY" else entry_price * 0.99
-            order = self.broker.place_order(symbol, side, "LIMIT", qty, price=entry_limit_price)
+            # Place entry order as MARKET for immediate execution
+            order = self.broker.place_order(symbol, side, "MARKET", qty)
             logger.debug(f"Entry order result: {order}")
 
             if not order or "orderId" not in order:
