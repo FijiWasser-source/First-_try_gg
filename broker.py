@@ -22,70 +22,7 @@ class BinanceBroker:
         )
         self.api_key = BINANCE_API_KEY
         self.api_secret = BINANCE_API_SECRET
-        self.lot_size_cache = {}    # symbol -> step size (quantity)
-        self.tick_size_cache = {}   # symbol -> tick size (price)
         logger.info(f"Connected to Binance Futures ({'testnet' if self.testnet else 'live'})")
-        self.load_exchange_info()
-
-    @staticmethod
-    def _decimals_from_step(step: float) -> int:
-        """Count the number of decimal places implied by a step/tick size"""
-        s = f"{step:.10f}".rstrip("0")
-        if "." in s:
-            return len(s.split(".")[1])
-        return 0
-
-    def load_exchange_info(self):
-        """Load exchange info with lot size (qty) and tick size (price) for all pairs"""
-        try:
-            response = self._request("GET", "/fapi/v1/exchangeInfo")
-            if response and "symbols" in response:
-                for symbol_info in response["symbols"]:
-                    symbol = symbol_info.get("symbol")
-                    if not symbol:
-                        continue
-                    lot_size = 1.0
-                    tick_size = 0.01
-                    for filter_item in symbol_info.get("filters", []):
-                        ftype = filter_item.get("filterType")
-                        if ftype == "LOT_SIZE":
-                            lot_size = float(filter_item.get("stepSize", 1.0))
-                        elif ftype == "PRICE_FILTER":
-                            tick_size = float(filter_item.get("tickSize", 0.01))
-                    self.lot_size_cache[symbol] = lot_size
-                    self.tick_size_cache[symbol] = tick_size
-                logger.info(f"Loaded lot/tick size for {len(self.lot_size_cache)} symbols")
-            else:
-                logger.warning("Failed to load exchange info")
-        except Exception as e:
-            logger.error(f"Error loading exchange info: {e}")
-
-    def get_lot_size(self, symbol: str) -> float:
-        """Get lot size (quantity step size) for a symbol"""
-        return self.lot_size_cache.get(symbol, 1.0)
-
-    def get_tick_size(self, symbol: str) -> float:
-        """Get tick size (price step size) for a symbol"""
-        return self.tick_size_cache.get(symbol, 0.01)
-
-    def format_quantity(self, symbol: str, quantity: float) -> float:
-        """Round quantity down to the symbol's lot size and format with correct decimals"""
-        step = self.get_lot_size(symbol)
-        if step <= 0:
-            return quantity
-        adjusted = (int(quantity / step)) * step
-        adjusted = max(adjusted, step)
-        decimals = self._decimals_from_step(step)
-        return float(f"{adjusted:.{decimals}f}")
-
-    def format_price(self, symbol: str, price: float) -> float:
-        """Round price to the symbol's tick size and format with correct decimals"""
-        tick = self.get_tick_size(symbol)
-        if tick <= 0:
-            return price
-        adjusted = round(price / tick) * tick
-        decimals = self._decimals_from_step(tick)
-        return float(f"{adjusted:.{decimals}f}")
 
     def _sign_request(self, params: dict) -> str:
         """Sign request for authentication"""
@@ -147,17 +84,22 @@ class BinanceBroker:
         quantity: float,
         price: float = None,
     ) -> dict:
-        """Place order with exchange-derived quantity and price precision"""
+        """Place order with proper precision"""
         try:
-            if quantity <= 0:
+            from config import ASSET_PRECISION
+
+            # Get asset-specific precision
+            precision = ASSET_PRECISION.get(symbol, 1)  # Default to 1 decimal
+
+            # Round quantity to proper precision (Binance requirements)
+            if quantity < 0.001:
                 logger.debug(f"Quantity {quantity} too small for {symbol}")
                 return {}
 
-            # Round quantity to lot size and price to tick size (from exchange info)
-            quantity = self.format_quantity(symbol, quantity)
-            logger.info(
-                f"📊 {symbol} {side} {order_type} order: qty={quantity}, lot_size={self.get_lot_size(symbol)}"
-            )
+            # Format with exact decimal places to avoid floating-point errors
+            quantity_str = f"{quantity:.{precision}f}"
+            quantity = float(quantity_str)
+            logger.debug(f"{symbol}: precision={precision}, quantity={quantity}, qty_str={quantity_str}")
 
             params = {
                 "symbol": symbol,
@@ -185,7 +127,10 @@ class BinanceBroker:
 
     def close_position(self, symbol: str, quantity: float, side: str = "SELL") -> dict:
         """Close position"""
-        quantity = self.format_quantity(symbol, quantity)
+        from config import ASSET_PRECISION
+
+        precision = ASSET_PRECISION.get(symbol, 2)
+        quantity = float(f"{quantity:.{precision}f}")
 
         params = {
             "symbol": symbol,
@@ -212,25 +157,26 @@ class BinanceBroker:
         take_profit: float = None,
     ) -> dict:
         """Place Stop Loss and Take Profit as Limit Orders"""
+        from config import ASSET_PRECISION
+
+        precision = ASSET_PRECISION.get(symbol, 2)
+        quantity = float(f"{quantity:.{precision}f}")
         results = {"sl_order": None, "tp_order": None}
 
-        if not stop_loss and not take_profit:
-            logger.warning(f"No SL or TP provided for {symbol}")
-            return results
-
         try:
-            # Format quantity once for both orders
-            quantity = self.format_quantity(symbol, quantity)
-            if quantity <= 0:
-                logger.error(f"Invalid quantity {quantity} for {symbol}")
-                return results
-
+            import time
             # Determine close side (opposite of entry side)
             close_side = "SELL" if side == "BUY" else "BUY"
 
-            # Place Stop Loss
+            # Place Stop Loss Limit Order
             if stop_loss:
-                sl_price = stop_loss
+                # Round price: whole numbers for high-value pairs (BTCUSDT, ETHUSDT)
+                # 2 decimals for others
+                if symbol in ["BTCUSDT", "ETHUSDT"]:
+                    sl_price = round(stop_loss, 0)  # Round to nearest integer
+                else:
+                    sl_price = round(stop_loss, 2)  # Round to 2 decimals
+
                 sl_params = {
                     "symbol": symbol,
                     "side": close_side,
@@ -239,21 +185,25 @@ class BinanceBroker:
                     "price": sl_price,
                     "timeInForce": "GTC"
                 }
-                logger.info(f"📉 Placing SL: {symbol} {close_side} {quantity} @ {sl_price}")
+                logger.debug(f"Placing SL order for {symbol}: qty={quantity}, price={sl_price}, side={close_side}")
                 sl_response = self._request("POST", "/fapi/v1/order", sl_params, private=True)
-
+                logger.debug(f"SL Response: {sl_response}")
                 if sl_response and "orderId" in sl_response:
                     results["sl_order"] = sl_response
-                    logger.info(f"✅ SL Order {sl_response['orderId']} placed: {symbol} @ ${sl_price}")
+                    logger.info(f"✅ Stop Loss Order placed for {symbol} at ${sl_price}")
                 else:
-                    logger.error(f"❌ SL Order failed: {sl_response}")
+                    logger.error(f"❌ SL Order failed for {symbol}: {sl_response}")
+                time.sleep(0.5)  # Small delay between orders
 
-                import time
-                time.sleep(0.3)
-
-            # Place Take Profit
+            # Place Take Profit Limit Order
             if take_profit:
-                tp_price = take_profit
+                # Round price: whole numbers for high-value pairs (BTCUSDT, ETHUSDT)
+                # 2 decimals for others
+                if symbol in ["BTCUSDT", "ETHUSDT"]:
+                    tp_price = round(take_profit, 0)  # Round to nearest integer
+                else:
+                    tp_price = round(take_profit, 2)  # Round to 2 decimals
+
                 tp_params = {
                     "symbol": symbol,
                     "side": close_side,
@@ -262,19 +212,19 @@ class BinanceBroker:
                     "price": tp_price,
                     "timeInForce": "GTC"
                 }
-                logger.info(f"📈 Placing TP: {symbol} {close_side} {quantity} @ {tp_price}")
+                logger.debug(f"Placing TP order for {symbol}: qty={quantity}, price={tp_price}, side={close_side}")
                 tp_response = self._request("POST", "/fapi/v1/order", tp_params, private=True)
-
+                logger.debug(f"TP Response: {tp_response}")
                 if tp_response and "orderId" in tp_response:
                     results["tp_order"] = tp_response
-                    logger.info(f"✅ TP Order {tp_response['orderId']} placed: {symbol} @ ${tp_price}")
+                    logger.info(f"✅ Take Profit Order placed for {symbol} at ${tp_price}")
                 else:
-                    logger.error(f"❌ TP Order failed: {tp_response}")
+                    logger.error(f"❌ TP Order failed for {symbol}: {tp_response}")
 
             return results
 
         except Exception as e:
-            logger.error(f"❌ Failed to place SL/TP orders: {e}")
+            logger.error(f"Failed to place SL/TP orders: {e}")
             return results
 
     def get_klines(
@@ -297,35 +247,6 @@ class BinanceBroker:
         else:
             logger.error(f"No klines for {symbol}")
             return []
-
-    def get_order_status(self, symbol: str, order_id: int) -> dict:
-        """Get order status from Binance"""
-        params = {
-            "symbol": symbol,
-            "orderId": order_id,
-        }
-        response = self._request("GET", "/fapi/v1/openOrder", params, private=True)
-        return response if response else {}
-
-    def wait_for_order_fill(self, symbol: str, order_id: int, timeout: int = 30) -> bool:
-        """Wait for order to be FILLED with timeout"""
-        import time
-        start = time.time()
-        while time.time() - start < timeout:
-            order = self.get_order_status(symbol, order_id)
-            if not order:
-                logger.warning(f"Order {order_id} not found (may be already filled)")
-                return True
-            status = order.get("status", "")
-            if status == "FILLED":
-                logger.info(f"✅ Order {order_id} FILLED")
-                return True
-            elif status == "CANCELED":
-                logger.error(f"❌ Order {order_id} CANCELED")
-                return False
-            time.sleep(1)
-        logger.error(f"❌ Order {order_id} timeout - still {status}")
-        return False
 
     def get_positions(self) -> list:
         """Get open positions"""

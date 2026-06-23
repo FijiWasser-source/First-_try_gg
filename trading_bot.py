@@ -220,16 +220,16 @@ class TradingBot:
                 logger.warning(f"Invalid position size for {symbol}")
                 return
 
-            # Place entry order (LIMIT with 1% buffer for reliable Testnet execution)
+            # Place entry order (LIMIT with 1% buffer for guaranteed execution on Testnet)
             entry_limit_price = entry_price * 1.01 if side == "BUY" else entry_price * 0.99
             order = self.broker.place_order(symbol, side, "LIMIT", qty, price=entry_limit_price)
             logger.debug(f"Entry order result: {order}")
 
             if not order or "orderId" not in order:
-                logger.error(f"❌ Entry order failed for {symbol}, no orderId - ABORT SL/TP placement")
+                logger.error(f"Entry order failed for {symbol}, skipping SL/TP placement")
                 return
 
-            logger.info(f"Entry order placed, placing SL/TP orders...")
+            logger.info(f"Entry order successful, placing SL/TP orders...")
             # Place SL/TP as Limit Orders (separate orders for reliability)
             sl_tp_orders = self.broker.place_sl_tp_orders(
                 symbol, qty, side, stop_loss=sl, take_profit=tp
